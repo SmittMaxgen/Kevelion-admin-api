@@ -1,0 +1,5 @@
+name,sku,status,detail,pricing_tiers,moq,cat_id,cat_sub_id,brand,material,made_in,specification,warranty,seller_id,highlight,f_image,image_2,image_3,image_4,product_catalogue
+Premium Cotton T-Shirt,TSHIRT-001,Active,High quality cotton t-shirt with comfortable fit,{},10,1,1,Nike,100% Cotton,India,Size: M-XL | Color: Multiple,1 Year,4,Yes,tshirt-001-main.jpg,tshirt-001-2.jpg,tshirt-001-3.jpg,tshirt-001-4.jpg,tshirt-001-catalog.pdf
+Leather Wallet,WALLET-001,Active,Genuine leather wallet with multiple card slots,{},5,2,3,Gucci,Genuine Leather,Italy,Premium quality | 8 card slots,2 Years,4,No,wallet-001-main.jpg,wallet-001-2.jpg,wallet-001-3.jpg,,wallet-001-catalog.pdf
+Wireless Earbuds,EARBUDS-001,Active,Latest wireless earbuds with noise cancellation,{},20,3,5,Sony,Plastic/Metal,China,Bluetooth 5.0 | 24hr battery,1 Year,4,Yes,earbuds-001-main.jpg,earbuds-001-2.jpg,,,earbuds-001-catalog.pdf
+Running Shoes,SHOES-001,Active,Comfortable running shoes for all terrains,{},15,1,2,Adidas,Synthetic,Vietnam,Sizes: 6-12 | Anti-slip sole,6 Months,4,No,shoes-001-main.jpg,shoes-001-2.jpg,shoes-001-3.jpg,shoes-001-4.jpg,

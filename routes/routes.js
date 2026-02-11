@@ -1,0 +1,41 @@
+import { Router } from "express";
+import sellerRouter from "./sellerRoutes/sellerRoutes.js";
+import buyerRouter from "./buyerRoutes/buyerRoutes.js";
+import adminRouter from "./adminRoutes/adminRoutes.js";
+import productCategoryRouter from "./productRoutes/productCategoryRoutes.js";
+import productRouter from "./productRoutes/productRoutes.js";
+import productSubCategoryRouter from "./productRoutes/productSubCategoryRoutes.js";
+import orderRouter from "./orderRoutes/orderRoutes.js";
+import subscriptionPackage from "./subscriptionPackageRoutes/subscriptionPackageRoutes.js";
+import slider from "./sliderRoutes/sliderRoutes.js";
+import wishlist from "./wishlistRoutes/wishlistRoutes.js";
+import productReview from "./productRoutes/productReviewRoutes.js";
+import address from "./addressRoutes/addressRoutes.js";
+import cart from "./cartRoutes/cartRoutes.js";
+import shipping from "./shippingRoutes/shippingRoutes.js";
+import faq from "./faqRoutes/faqRoutes.js";
+import stock from "./stockRoutes/stockRoutes.js";
+export const router = Router();
+
+router.get("/", (req, res) => {
+  res.send("rettalion backend");
+});
+
+
+
+router.use(sellerRouter);
+router.use(buyerRouter);
+router.use(adminRouter);
+router.use(productCategoryRouter);
+router.use(productRouter);
+router.use(productSubCategoryRouter);
+router.use(orderRouter);
+router.use(subscriptionPackage);
+router.use(slider);
+router.use(wishlist);
+router.use(productReview);
+router.use(address);
+router.use(cart);
+router.use(shipping);
+router.use(faq);
+router.use(stock);
