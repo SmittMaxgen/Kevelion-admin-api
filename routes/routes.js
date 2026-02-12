@@ -15,13 +15,12 @@ import cart from "./cartRoutes/cartRoutes.js";
 import shipping from "./shippingRoutes/shippingRoutes.js";
 import faq from "./faqRoutes/faqRoutes.js";
 import stock from "./stockRoutes/stockRoutes.js";
+import complaint from "./complaintRoutes/complaintRoutes.js";
 export const router = Router();
 
 router.get("/", (req, res) => {
   res.send("rettalion backend");
 });
-
-
 
 router.use(sellerRouter);
 router.use(buyerRouter);
@@ -39,3 +38,4 @@ router.use(cart);
 router.use(shipping);
 router.use(faq);
 router.use(stock);
+router.use(complaint);
