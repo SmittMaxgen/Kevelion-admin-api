@@ -16,6 +16,11 @@ import shipping from "./shippingRoutes/shippingRoutes.js";
 import faq from "./faqRoutes/faqRoutes.js";
 import stock from "./stockRoutes/stockRoutes.js";
 import complaint from "./complaintRoutes/complaintRoutes.js";
+import colorMaster from "./productMasterRoutes/colorMasterRoutes.js";
+import materialMaster from "./productMasterRoutes/materialMasterRoutes.js";
+import countryMaster from "./productMasterRoutes/countryMasterRoutes.js";
+import finishMaster from "./productMasterRoutes/finishMasterRoutes.js";
+
 export const router = Router();
 
 router.get("/", (req, res) => {
@@ -39,3 +44,7 @@ router.use(shipping);
 router.use(faq);
 router.use(stock);
 router.use(complaint);
+router.use(colorMaster);
+router.use(countryMaster);
+router.use(materialMaster);
+router.use(finishMaster);
