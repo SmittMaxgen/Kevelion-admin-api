@@ -28,8 +28,9 @@ export async function connectDB() {
     try {
       connection = mysql.createPool({
         host: "localhost",
-        user: "retailia_retailian",
-        password: "3{uFuGp)b9+G5dzg",
+        user: "root",
+        password: "root",
+        port: "3306",
         database: "retailia_retailian",
         waitForConnections: true,
         connectionLimit: 10,

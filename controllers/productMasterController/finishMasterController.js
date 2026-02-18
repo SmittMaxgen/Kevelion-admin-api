@@ -8,7 +8,7 @@ export const createFinish = async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO finish_master (name, is_custom, status)
        VALUES (?, ?, ?)`,
-      [name, is_custom, status]
+      [name, is_custom, status],
     );
 
     res.status(201).json({ message: "Finish created", id: result.insertId });
@@ -20,7 +20,7 @@ export const createFinish = async (req, res) => {
 export const getAllFinish = async (req, res) => {
   const pool = await connectDB();
   const [rows] = await pool.query(
-    `SELECT * FROM finish_master ORDER BY id DESC`
+    `SELECT * FROM finish_master ORDER BY id DESC`,
   );
   res.json(rows);
 };
@@ -28,7 +28,7 @@ export const getAllFinish = async (req, res) => {
 export const getAllActiveFinish = async (req, res) => {
   const pool = await connectDB();
   const [rows] = await pool.query(
-    `SELECT * FROM finish_master WHERE status='active'`
+    `SELECT * FROM finish_master WHERE status='active'`,
   );
   res.json(rows);
 };
@@ -36,10 +36,9 @@ export const getAllActiveFinish = async (req, res) => {
 export const getFinishById = async (req, res) => {
   const pool = await connectDB();
   const { id } = req.params;
-  const [rows] = await pool.query(
-    `SELECT * FROM finish_master WHERE id=?`,
-    [id]
-  );
+  const [rows] = await pool.query(`SELECT * FROM finish_master WHERE id=?`, [
+    id,
+  ]);
   if (!rows.length) return res.status(404).json({ message: "Not found" });
   res.json(rows[0]);
 };
@@ -56,10 +55,7 @@ export const updateFinish = async (req, res) => {
   const values = Object.values(updates);
   values.push(id);
 
-  await pool.query(
-    `UPDATE finish_master SET ${fields} WHERE id=?`,
-    values
-  );
+  await pool.query(`UPDATE finish_master SET ${fields} WHERE id=?`, values);
 
   res.json({ message: "Finish updated successfully" });
 };

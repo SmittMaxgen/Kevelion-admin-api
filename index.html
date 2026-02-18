@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PayPal Node App - Maxgen Technologies</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #f0f4f8;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      width: 350px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .product-img {
+      font-size: 80px;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 24px; color: #333; margin-bottom: 8px; }
+    .price { font-size: 32px; color: #0070ba; font-weight: bold; margin: 16px 0; }
+    .description { color: #666; font-size: 14px; margin-bottom: 30px; }
+    .divider { border: none; border-top: 1px solid #eee; margin: 20px 0; }
+    button {
+      background: #0070ba;
+      color: white;
+      border: none;
+      padding: 14px 40px;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+    button:hover { background: #005ea6; }
+    .paypal-logo { margin-top: 16px; font-size: 12px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="product-img">👟</div>
+    <h1>Premium Shoes</h1>
+    <p class="description">High quality product by Maxgen Technologies</p>
+    <div class="price">$25.00 USD</div>
+    <hr class="divider">
+    <form action="/pay" method="post">
+      <button type="submit">
+        Pay with PayPal
+      </button>
+    </form>
+    <p class="paypal-logo">🔒 Secured by PayPal</p>
+  </div>
+</body>
+</html>
