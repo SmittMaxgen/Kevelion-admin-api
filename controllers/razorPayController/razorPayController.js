@@ -140,8 +140,10 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import { connectDB } from "../../connection/db.js";
 
-const RAZORPAY_KEY_ID = "rzp_test_SH7WpeCIJ9twSe";
-const RAZORPAY_KEY_SECRET = "o7lZUmdeIa9vzbQ25knSL8TV";
+// const RAZORPAY_KEY_ID = "rzp_test_SH7WpeCIJ9twSe";
+// const RAZORPAY_KEY_SECRET = "o7lZUmdeIa9vzbQ25knSL8TV";
+const RAZORPAY_KEY_ID = "rzp_test_SOEyd37AsrERPN";
+const RAZORPAY_KEY_SECRET = "7m80crPTmM70cVUVMGJZolAJ";
 
 const razorpay = new Razorpay({
   key_id: RAZORPAY_KEY_ID,
