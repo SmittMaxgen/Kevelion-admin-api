@@ -627,6 +627,43 @@ export const getProductInventory = async (req, res) => {
   }
 };
 
+export const getAllInventory = async (req, res) => {
+  try {
+    const pool = await connectDB();
+
+    const [inventory] = await pool.query(
+      `SELECT 
+        pi.id,
+        pi.product_id,
+        p.name        AS product_name,
+        p.sku         AS product_sku,
+        p.quantity    AS current_quantity,
+        pi.seller_id,
+        s.name        AS seller_name,
+        pi.change_type,
+        pi.quantity_change,
+        pi.quantity_before,
+        pi.quantity_after,
+        pi.order_type,
+        pi.order_id,
+        pi.note,
+        pi.created_at
+      FROM product_inventory pi
+      JOIN product p ON p.id = pi.product_id
+      JOIN seller  s ON s.id = pi.seller_id
+      ORDER BY pi.created_at DESC`
+    );
+
+    return res.status(200).json({
+      success: true,
+      total:   inventory.length,
+      inventory,
+    });
+  } catch (err) {
+    console.error("Error fetching all inventory:", err);
+    return res.status(500).json({ success: false, message: "Server error", error: err.message });
+  }
+};
 // =======================================================
 // ✅ DELETE PRODUCT
 // =======================================================
