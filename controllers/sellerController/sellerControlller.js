@@ -5,14 +5,13 @@ import jwt from "jsonwebtoken";
 
 //const JWT_SECRET = "your_secret_key"; // ✅ define JWT secret key
 
-
 // ======================= CREATE SELLER + FREE TRIAL===========================
 // ======================= CREATE SELLER + FREE TRIAL===========================
 export const createSeller = async (req, res) => {
   try {
     const pool = await connectDB();
 
-      // Step 1: Parse body data correctly
+    // Step 1: Parse body data correctly
     let bodyData = {};
 
     if (req.headers["content-type"]?.includes("multipart/form-data")) {
@@ -21,7 +20,7 @@ export const createSeller = async (req, res) => {
     } else {
       bodyData = req.body; // JSON
     }
- 
+
     // Extract fields from bodyData
     const {
       name,
@@ -45,19 +44,20 @@ export const createSeller = async (req, res) => {
       bank_name,
       bank_IFSC_code,
       account_number,
-      account_type
+      account_type,
     } = bodyData;
-
 
     if (!name || !mobile || !email || !password)
       return res.status(400).json({ message: "Missing required fields" });
 
     const [existingSeller] = await pool.query(
       "SELECT id FROM seller WHERE email = ? OR mobile = ?",
-      [email, mobile]
-    ); 
+      [email, mobile],
+    );
     if (existingSeller.length > 0)
-      return res.status(400).json({ message: "Email or Mobile already exists" });
+      return res
+        .status(400)
+        .json({ message: "Email or Mobile already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -75,7 +75,7 @@ export const createSeller = async (req, res) => {
         device_token || "",
         false,
         null,
-      ]
+      ],
     );
 
     const sellerId = sellerResult.insertId;
@@ -102,7 +102,7 @@ export const createSeller = async (req, res) => {
         city || "",
         state || "",
         pincode || "",
-      ]
+      ],
     );
 
     // kyc
@@ -118,7 +118,7 @@ export const createSeller = async (req, res) => {
         getFilePath("company_registration"),
         getFilePath("company_pan_card"),
         getFilePath("gst_certificate"),
-      ]
+      ],
     );
 
     // bank
@@ -133,7 +133,7 @@ export const createSeller = async (req, res) => {
         bank_IFSC_code || "",
         account_number || "",
         account_type || "",
-      ]
+      ],
     );
 
     // 🎁 Assign FREE TRIAL (3 months)
@@ -142,21 +142,19 @@ export const createSeller = async (req, res) => {
     const endDate = new Date();
     endDate.setDate(startDate.getDate() + trialDays);
 
-   const [sellerPackageResult] =  await pool.query(
+    const [sellerPackageResult] = await pool.query(
       `INSERT INTO seller_packages_history 
       (seller_id, package_id, package_start_date, package_end_date, amount_paid,payment_status, payment_mode)
       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [sellerId, 1, startDate, endDate, 0, "paid", "free_trial"]
+      [sellerId, 1, startDate, endDate, 0, "paid", "free_trial"],
     );
 
-const sellerCurrentPackageId = sellerPackageResult.insertId;
+    const sellerCurrentPackageId = sellerPackageResult.insertId;
 
     await pool.query(
       `UPDATE seller SET current_package_id=?, subscription=?, current_package_start=?, current_package_end=?, join_date=? WHERE id=?`,
-      [sellerCurrentPackageId, 1,startDate, endDate,startDate, sellerId]
+      [sellerCurrentPackageId, 1, startDate, endDate, startDate, sellerId],
     );
-    
-
 
     res.status(201).json({
       message: "Seller created successfully with 3-month free trial",
@@ -167,13 +165,6 @@ const sellerCurrentPackageId = sellerPackageResult.insertId;
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
-
-
-
-
-
-
 
 /*
 export const createSeller = async (req, res) => {
@@ -307,10 +298,6 @@ const sellerCurrentPackageId = sellerPackageResult.insertId;
   }
 };*/
 
-
-
-
-
 // ======================= GET ALL SELLERS ===========================
 export const getAllSellers = async (req, res) => {
   try {
@@ -321,7 +308,7 @@ export const getAllSellers = async (req, res) => {
        c.company_name, c.city, c.state, c.pincode 
        FROM seller s 
        LEFT JOIN seller_company_details c ON s.id = c.seller_id
-       ORDER BY s.id DESC`
+       ORDER BY s.id DESC`,
     );
     res.status(200).json(rows);
   } catch (err) {
@@ -329,7 +316,6 @@ export const getAllSellers = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 // ======================= GET ALL SELLERS with Subscription Package ===========================
 export const getAllSellerswithPackage = async (req, res) => {
@@ -343,7 +329,7 @@ export const getAllSellerswithPackage = async (req, res) => {
        LEFT JOIN seller_packages_history ph ON s.id = ph.seller_id 
        LEFT JOIN subscription_package sp ON sp.id = ph.package_id 
        WHERE ph.status = "Active"
-       ORDER BY s.id DESC`
+       ORDER BY s.id DESC`,
     );
     res.status(200).json(rows);
   } catch (err) {
@@ -358,13 +344,24 @@ export const getSellerById = async (req, res) => {
     const pool = await connectDB();
     const { id } = req.params;
 
-    const [sellerData] = await pool.query(`SELECT * FROM seller WHERE id = ?`, [id]);
+    const [sellerData] = await pool.query(`SELECT * FROM seller WHERE id = ?`, [
+      id,
+    ]);
     if (sellerData.length === 0)
       return res.status(404).json({ message: "Seller not found" });
 
-    const [company] = await pool.query(`SELECT * FROM seller_company_details WHERE seller_id = ?`, [id]);
-    const [kyc] = await pool.query(`SELECT * FROM seller_kyc_details WHERE seller_id = ?`, [id]);
-    const [bank] = await pool.query(`SELECT * FROM seller_bank_details WHERE seller_id = ?`, [id]);
+    const [company] = await pool.query(
+      `SELECT * FROM seller_company_details WHERE seller_id = ?`,
+      [id],
+    );
+    const [kyc] = await pool.query(
+      `SELECT * FROM seller_kyc_details WHERE seller_id = ?`,
+      [id],
+    );
+    const [bank] = await pool.query(
+      `SELECT * FROM seller_bank_details WHERE seller_id = ?`,
+      [id],
+    );
 
     res.status(200).json({
       seller: sellerData[0],
@@ -384,13 +381,21 @@ export const deleteSeller = async (req, res) => {
     const pool = await connectDB();
     const { id } = req.params;
 
-    const [seller] = await pool.query(`SELECT id FROM seller WHERE id = ?`, [id]);
+    const [seller] = await pool.query(`SELECT id FROM seller WHERE id = ?`, [
+      id,
+    ]);
     if (seller.length === 0)
       return res.status(404).json({ message: "Seller not found" });
 
-    await pool.query(`DELETE FROM seller_bank_details WHERE seller_id = ?`, [id]);
-    await pool.query(`DELETE FROM seller_kyc_details WHERE seller_id = ?`, [id]);
-    await pool.query(`DELETE FROM seller_company_details WHERE seller_id = ?`, [id]);
+    await pool.query(`DELETE FROM seller_bank_details WHERE seller_id = ?`, [
+      id,
+    ]);
+    await pool.query(`DELETE FROM seller_kyc_details WHERE seller_id = ?`, [
+      id,
+    ]);
+    await pool.query(`DELETE FROM seller_company_details WHERE seller_id = ?`, [
+      id,
+    ]);
     await pool.query(`DELETE FROM seller WHERE id = ?`, [id]);
 
     res.status(200).json({ message: "Seller deleted successfully" });
@@ -410,7 +415,7 @@ export const getAllPendingSellers = async (req, res) => {
        FROM seller s 
        LEFT JOIN seller_company_details c ON s.id = c.seller_id
        WHERE s.approve_status = 'Pending'
-       ORDER BY s.id DESC`
+       ORDER BY s.id DESC`,
     );
     res.status(200).json(rows);
   } catch (err) {
@@ -418,7 +423,6 @@ export const getAllPendingSellers = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 // ======================= UPDATE SELLER ===========================
 export const updateSeller = async (req, res) => {
@@ -435,7 +439,7 @@ export const updateSeller = async (req, res) => {
     } else {
       bodyData = req.body; // JSON
     }
- 
+
     // Extract fields from bodyData
     const {
       name,
@@ -462,15 +466,12 @@ export const updateSeller = async (req, res) => {
       bank_name,
       bank_IFSC_code,
       account_number,
-      account_type
+      account_type,
     } = bodyData;
 
-
-
-
-
-
-    const [sellerRows] = await pool.query("SELECT * FROM seller WHERE id = ?", [id]);
+    const [sellerRows] = await pool.query("SELECT * FROM seller WHERE id = ?", [
+      id,
+    ]);
     if (sellerRows.length === 0)
       return res.status(404).json({ message: "Seller not found" });
 
@@ -479,7 +480,24 @@ export const updateSeller = async (req, res) => {
       : sellerRows[0].password;
 
     const getFilePath = (field) =>
-      req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
+      req.files?.[field]?.[0]
+        ? `/uploads/${req.files[field][0].filename}`
+        : null;
+
+    // await pool.query(
+    //   `UPDATE seller SET name=?, mobile=?, email=?, password=?, approve_status=?, device_token=?, subscription=?, current_package_id=? WHERE id=?`,
+    //   [
+    //     name || sellerRows[0].name,
+    //     mobile || sellerRows[0].mobile,
+    //     email || sellerRows[0].email,
+    //     hashedPassword,
+    //     approve_status || sellerRows[0].approve_status,
+    //     device_token || sellerRows[0].device_token,
+    //     subscription ?? sellerRows[0].subscription,
+    //     current_package_id ?? sellerRows[0].current_package_id,
+    //     id,
+    //   ],
+    // );
 
     await pool.query(
       `UPDATE seller SET name=?, mobile=?, email=?, password=?, approve_status=?, device_token=?, subscription=?, current_package_id=? WHERE id=?`,
@@ -487,20 +505,19 @@ export const updateSeller = async (req, res) => {
         name || sellerRows[0].name,
         mobile || sellerRows[0].mobile,
         email || sellerRows[0].email,
-        hashedPassword,
-        approve_status || sellerRows[0].approve_status,
+        hashedPassword || sellerRows[0].password, // ✅ Fix 1: fallback to existing password
+        approve_status ?? sellerRows[0].approve_status, // ✅ Fix 2: ?? instead of ||
         device_token || sellerRows[0].device_token,
         subscription ?? sellerRows[0].subscription,
         current_package_id ?? sellerRows[0].current_package_id,
         id,
-      ]
+      ],
     );
 
-    
     // ✅ Update company
     const [companyRows] = await pool.query(
       "SELECT * FROM seller_company_details WHERE seller_id = ?",
-      [id]
+      [id],
     );
     const testquery = await pool.query(
       `UPDATE seller_company_details SET 
@@ -523,13 +540,13 @@ export const updateSeller = async (req, res) => {
         state || companyRows[0].state,
         pincode || companyRows[0].pincode,
         id,
-      ]
+      ],
     );
 
     // ✅ Update KYC
     const [kycRows] = await pool.query(
       "SELECT * FROM seller_kyc_details WHERE seller_id=?",
-      [id]
+      [id],
     );
     await pool.query(
       `UPDATE seller_kyc_details SET aadhar_number=?, aadhar_front=?, aadhar_back=?, company_registration=?, company_pan_card=?, gst_certificate=? WHERE seller_id=?`,
@@ -541,46 +558,47 @@ export const updateSeller = async (req, res) => {
         getFilePath("company_pan_card") || kycRows[0].company_pan_card,
         getFilePath("gst_certificate") || kycRows[0].gst_certificate,
         id,
-      ]
+      ],
     );
 
     // ✅ Update Bank
     const [bankRows] = await pool.query(
       "SELECT * FROM seller_bank_details WHERE seller_id=?",
-      [id]
+      [id],
     );
     await pool.query(
       `UPDATE seller_bank_details SET cancelled_cheque_photo=?, bank_name=?, bank_IFSC_code=?, account_number=?, account_type=? WHERE seller_id=?`,
       [
-        getFilePath("cancelled_cheque_photo") || bankRows[0].cancelled_cheque_photo,
+        getFilePath("cancelled_cheque_photo") ||
+          bankRows[0].cancelled_cheque_photo,
         bank_name || bankRows[0].bank_name,
         bank_IFSC_code || bankRows[0].bank_IFSC_code,
         account_number || bankRows[0].account_number,
         account_type || bankRows[0].account_type,
         id,
-      ]
+      ],
     );
 
-
-
-
-    res.status(200).json({ message: "Seller updated successfully"});
+    res.status(200).json({ message: "Seller updated successfully" });
   } catch (err) {
     console.error("Error updating seller:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
-}; 
+};
 
- 
 // ======================= RENEW OR UPGRADE PACKAGE ===========================
 export const renewOrUpgradePackage = async (req, res) => {
   try {
     const pool = await connectDB();
     //const { seller_id, new_package_id, type } = req.body; // type = 'renew' or 'upgrade'
-    const { seller_id, new_package_id } = req.body; 
+    const { seller_id, new_package_id } = req.body;
 
-    const [pkg] = await pool.query(`SELECT * FROM subscription_package WHERE id=?`, [new_package_id]);
-    if (pkg.length === 0) return res.status(404).json({ message: "Package not found" });
+    const [pkg] = await pool.query(
+      `SELECT * FROM subscription_package WHERE id=?`,
+      [new_package_id],
+    );
+    if (pkg.length === 0)
+      return res.status(404).json({ message: "Package not found" });
 
     const startDate = new Date();
     const endDate = new Date();
@@ -588,19 +606,19 @@ export const renewOrUpgradePackage = async (req, res) => {
 
     await pool.query(
       `UPDATE seller_packages_history SET status='Expired' WHERE seller_id=? AND status='Active'`,
-      [seller_id]
+      [seller_id],
     );
 
-    const [sellerPackageResult] =await pool.query(
+    const [sellerPackageResult] = await pool.query(
       `INSERT INTO seller_packages_history (seller_id, package_id, package_start_date, package_end_date, amount_paid, status)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [seller_id, new_package_id, startDate, endDate, pkg[0].price, "Active"]
+      [seller_id, new_package_id, startDate, endDate, pkg[0].price, "Active"],
     );
 
     const sellerCurrentPackageId = sellerPackageResult.insertId;
     await pool.query(
       `UPDATE seller SET current_package_id=?, subscription=? WHERE id=?`,
-      [sellerCurrentPackageId, true, seller_id]
+      [sellerCurrentPackageId, true, seller_id],
     );
 
     res.status(200).json({ message: `Package ${type} successful` });
@@ -615,7 +633,7 @@ export const getVendorPackages = async (req, res) => {
   try {
     const pool = await connectDB();
     const { seller_id } = req.params;
-    
+
     const [rows] = await pool.query(
       `SELECT  sp.*,
     sp.id AS package_history_id ,
@@ -635,9 +653,9 @@ GROUP BY
     sp.id, sp.package_id, sp.package_start_date, sp.package_end_date
 ORDER BY 
     sp.package_start_date DESC`,
-      [seller_id]
+      [seller_id],
     );
-    
+
     /*SELECT  sp.*,
     sp.id AS package_history_id ,
     p.package_name AS package_name, p.package_price,
@@ -657,12 +675,99 @@ GROUP BY
 ORDER BY 
     sp.package_start_date DESC;
     */
-    
-    
+
     res.status(200).json(rows);
     console(rows);
   } catch (err) {
     console.error("Error fetching vendor packages:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ======================= CREATE VENDOR PACKAGE HISTORY ===========================
+
+export const createVendorPackage = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { seller_id } = req.params;
+    const { package_id, package_start_date, package_end_date } = req.body;
+
+    // Validate required fields
+    if (!package_id || !package_start_date || !package_end_date) {
+      return res.status(400).json({
+        message:
+          "package_id, package_start_date, and package_end_date are required.",
+      });
+    }
+
+    // Check if the package exists
+    const [packageExists] = await pool.query(
+      `SELECT id FROM subscription_package WHERE id = ?`,
+      [package_id],
+    );
+
+    if (packageExists.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Subscription package not found." });
+    }
+
+    // Check for overlapping active packages for this seller
+    const [overlap] = await pool.query(
+      `SELECT id FROM seller_packages_history
+       WHERE seller_id = ?
+         AND package_start_date < ?
+         AND package_end_date > ?`,
+      [seller_id, package_end_date, package_start_date],
+    );
+
+    if (overlap.length > 0) {
+      return res.status(409).json({
+        message:
+          "Seller already has an active package overlapping this date range.",
+      });
+    }
+
+    // Insert the new subscription
+    const [result] = await pool.query(
+      `INSERT INTO seller_packages_history (seller_id, package_id, package_start_date, package_end_date)
+       VALUES (?, ?, ?, ?)`,
+      [seller_id, package_id, package_start_date, package_end_date],
+    );
+
+    res.status(201).json({
+      message: "Subscription created successfully.",
+      package_history_id: result.insertId,
+    });
+  } catch (err) {
+    console.error("Error creating vendor package:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const deleteVendorPackage = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Id required !" });
+    }
+
+    const [existing] = await pool.query(
+      `SELECT id FROM seller_packages_history WHERE id = ?`,
+      [id],
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ message: "Package history not found." });
+    }
+
+    await pool.query(`DELETE FROM seller_packages_history WHERE id = ?`, [id]);
+
+    res.status(200).json({ message: "Package history deleted successfully." });
+  } catch (err) {
+    console.error("Error deleting vendor package:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -673,24 +778,36 @@ export const approveVendorPackage = async (req, res) => {
     const pool = await connectDB();
     const { seller_id, package_id } = req.body;
 
-    const [pkg] = await pool.query(`SELECT * FROM subscription_package WHERE id=?`, [package_id]);
-    if (pkg.length === 0) return res.status(404).json({ message: "Package not found" });
+    const [pkg] = await pool.query(
+      `SELECT * FROM subscription_package WHERE id=?`,
+      [package_id],
+    );
+    if (pkg.length === 0)
+      return res.status(404).json({ message: "Package not found" });
 
     const startDate = new Date();
     const endDate = new Date();
     endDate.setMonth(startDate.getMonth() + pkg[0].duration_months);
 
-   const [sellerPackageResult] =  await pool.query(
+    const [sellerPackageResult] = await pool.query(
       `INSERT INTO seller_packages_history (seller_id, package_id, package_start_date, package_end_date, amount_paid, approval_status, payment_mode)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [seller_id, package_id, startDate, endDate, pkg[0].package_price, "approved", "online"]
+      [
+        seller_id,
+        package_id,
+        startDate,
+        endDate,
+        pkg[0].package_price,
+        "approved",
+        "online",
+      ],
     );
 
- const sellerCurrentPackageId = sellerPackageResult.insertId;
+    const sellerCurrentPackageId = sellerPackageResult.insertId;
 
     await pool.query(
       `UPDATE seller SET current_package_id=?, subscription=?, approve_status=? WHERE id=?`,
-      [sellerCurrentPackageId, 1, "Approved", seller_id]
+      [sellerCurrentPackageId, 1, "Approved", seller_id],
     );
 
     res.status(200).json({ message: "Vendor package approved and activated" });
@@ -701,140 +818,139 @@ export const approveVendorPackage = async (req, res) => {
 };
 //============================ Send OTP=================================
 export const sendLoginOtp = async (req, res) => {
-    try {
-        const pool = await connectDB();
-        const { mobile } = req.body;
+  try {
+    const pool = await connectDB();
+    const { mobile } = req.body;
 
-        if (!mobile) {
-            return res.status(400).json({ message: "Mobile number is required" });
-        }
-
-        // Check seller exists
-        const [user] = await pool.query(
-            "SELECT * FROM seller WHERE mobile = ?",
-            [mobile]
-        );
-
-        if (user.length === 0) {
-            return res.status(404).json({ message: "Seller not found" });
-        }
-
-        // Generate OTP
-        const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
-        // Set expiry for 5 minutes
-        const expiry = new Date(Date.now() + 5 * 60 * 1000);
-
-        // Save to DB
-        await pool.query(
-            "UPDATE seller SET otp_code = ?, otp_expiry = ? WHERE mobile = ?",
-            [otp, expiry, mobile]
-        );
-
-        // TODO: Send SMS using SMS API like Twilio, MSG91, etc.
-        console.log(`OTP for ${mobile} = ${otp}`);
-
-        res.json({
-            message: `OTP sent to ${mobile}`,
-            success: true
-        });
-
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Server Error123",error : error.message });
+    if (!mobile) {
+      return res.status(400).json({ message: "Mobile number is required" });
     }
-};
 
+    // Check seller exists
+    const [user] = await pool.query("SELECT * FROM seller WHERE mobile = ?", [
+      mobile,
+    ]);
+
+    if (user.length === 0) {
+      return res.status(404).json({ message: "Seller not found" });
+    }
+
+    // Generate OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Set expiry for 5 minutes
+    const expiry = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Save to DB
+    await pool.query(
+      "UPDATE seller SET otp_code = ?, otp_expiry = ? WHERE mobile = ?",
+      [otp, expiry, mobile],
+    );
+
+    // TODO: Send SMS using SMS API like Twilio, MSG91, etc.
+    console.log(`OTP for ${mobile} = ${otp}`);
+
+    res.json({
+      message: `OTP sent to ${mobile}`,
+      success: true,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server Error123", error: error.message });
+  }
+};
 
 //====================== verify otp=============================
 export const verifyOtp = async (req, res) => {
-    try {
-        const pool = await connectDB();
-        const { mobile, otp } = req.body;
+  try {
+    const pool = await connectDB();
+    const { mobile, otp } = req.body;
 
-        if (!mobile || !otp) {
-            return res.status(400).json({ message: "Mobile & OTP required" });
-        }
-
-        const [user] = await pool.query(
-            "SELECT * FROM seller WHERE mobile = ?",
-            [mobile]
-        );
-
-        if (user.length === 0) {
-            return res.status(404).json({ message: "Seller not found" });
-        }
-
-        const seller = user[0];
-
-        // Check OTP correctness
-        if (seller.otp_code !== otp) {
-            return res.status(401).json({ message: "Invalid OTP" });
-        }
-
-        // Check expiry
-        if (new Date(seller.otp_expiry) < new Date()) {
-            return res.status(401).json({ message: "OTP expired" });
-        }
-
-        // OTP Success → Generate Token
-        const token = jwt.sign(
-            {
-                seller_id: seller.id,
-                mobile: seller.mobile,
-            },
-            "SECRET_KEY",   // change this to secure key
-            { expiresIn: "7d" }
-        );
-        // Check token
-        if (token == "") {
-            return res.status(401).json({ message: "token not generate" ,data: seller.id});
-        }
-        
-        
-        // Clear OTP
-        await pool.query(
-            "UPDATE seller SET otp_code = NULL, otp_expiry = NULL WHERE id = ?",
-            [seller.id]
-        );
-
-        res.json({
-            message: "Login successful",
-            token,
-            seller,
-            success: true
-        });
-
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Server Error 123",error: error.message });
+    if (!mobile || !otp) {
+      return res.status(400).json({ message: "Mobile & OTP required" });
     }
+
+    const [user] = await pool.query("SELECT * FROM seller WHERE mobile = ?", [
+      mobile,
+    ]);
+
+    if (user.length === 0) {
+      return res.status(404).json({ message: "Seller not found" });
+    }
+
+    const seller = user[0];
+
+    // Check OTP correctness
+    if (seller.otp_code !== otp) {
+      return res.status(401).json({ message: "Invalid OTP" });
+    }
+
+    // Check expiry
+    if (new Date(seller.otp_expiry) < new Date()) {
+      return res.status(401).json({ message: "OTP expired" });
+    }
+
+    // OTP Success → Generate Token
+    const token = jwt.sign(
+      {
+        seller_id: seller.id,
+        mobile: seller.mobile,
+      },
+      "SECRET_KEY", // change this to secure key
+      { expiresIn: "7d" },
+    );
+    // Check token
+    if (token == "") {
+      return res
+        .status(401)
+        .json({ message: "token not generate", data: seller.id });
+    }
+
+    // Clear OTP
+    await pool.query(
+      "UPDATE seller SET otp_code = NULL, otp_expiry = NULL WHERE id = ?",
+      [seller.id],
+    );
+
+    res.json({
+      message: "Login successful",
+      token,
+      seller,
+      success: true,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server Error 123", error: error.message });
+  }
 };
-
-
-
-
 
 //=======================seller login  ===========================
 /**
  * Fields: email, password
  */
- export const sellerLogin = async (req, res) => {
+export const sellerLogin = async (req, res) => {
   try {
     const pool = await connectDB();
     const { email, password } = req.body;
-    
+
     // Basic validation
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required." });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required." });
     }
-    
+
     // Find user by email
-    const [sellerRows] = await pool.query("SELECT * FROM seller WHERE email = ?", [email]);
+    const [sellerRows] = await pool.query(
+      "SELECT * FROM seller WHERE email = ?",
+      [email],
+    );
     if (sellerRows.length === 0) {
-      return res.status(404).json({ message: "Seller with this email id not found" });
+      return res
+        .status(404)
+        .json({ message: "Seller with this email id not found" });
     }
-    
+
     const seller = sellerRows[0];
 
     // 2️⃣ Compare password using bcrypt
@@ -842,8 +958,9 @@ export const verifyOtp = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    
-    const [rows] = await pool.query(`
+
+    const [rows] = await pool.query(
+      `
   SELECT 
       sp.max_product_add, 
       COUNT(p.id) AS total_product,
@@ -853,12 +970,14 @@ export const verifyOtp = async (req, res) => {
   LEFT JOIN product p ON p.seller_id = sph.seller_id
   WHERE sph.status = 'active' AND sph.seller_id = ?
   GROUP BY sph.id, sp.max_product_add;
-`, [seller.id]);
+`,
+      [seller.id],
+    );
 
     const limitInfo = rows[0];
 
-  const remaining = limitInfo.remaining_slots ?? 0;
-    
+    const remaining = limitInfo.remaining_slots ?? 0;
+
     /*
      // 3️⃣ Generate JWT token
     const token = jwt.sign(
@@ -866,8 +985,6 @@ export const verifyOtp = async (req, res) => {
       JWT_SECRET,
       { expiresIn: "7d" }
     );*/
-    
-    
 
     // 4️⃣ Return success response
     res.json({
@@ -880,18 +997,15 @@ export const verifyOtp = async (req, res) => {
         mobile: seller.mobile,
         status: seller.status,
         approve_status: seller.approve_status,
-        remaining_product :remaining,
+        remaining_product: remaining,
       },
     });
-    
-  }catch (error) {
+  } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
- };
- 
- 
- 
+};
+
 /*export const updateSeller = async (req, res) => {
   try {
     const pool = await connectDB();
@@ -1002,7 +1116,6 @@ export const verifyOtp = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };*/
-
 
 /*
 export const updateSeller = async (req, res) => {

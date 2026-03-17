@@ -1,794 +1,2334 @@
+// import { connectDB } from "../../connection/db.js";
+// import bcrypt from "bcrypt";
+
+// //pid 68da4c56922dd5bc816126f9
+// // //.pid2  68da4c51922dd5bc816126f5
+// //buyer id :68d4deffde6c966bf42d56df
+// //seller id : 68d4f5a31788865eb5be9d3e
+// //order id : 68da638fe69e13874b77efce
+// /*
+
+// {
+//     "buyer_id": "68d4deffde6c966bf42d56df",
+//     "order_type": "Order",
+//     "products": [
+//     {
+//       "product_id": "68da4c56922dd5bc816126f9",
+//       "seller_id" : "68d4f5a31788865eb5be9d3e",
+//       "quantity": 2,
+//       "price": 49.99,
+//       "order_status" : "New",
+//       "payment_status" : "Pending"
+//     },
+//     {
+//       "product_id": "68da4c51922dd5bc816126f5",
+//       "seller_id": "68d4f5a31788865eb5be9d3e",
+//       "quantity": 1,
+//       "price": 100.00,
+//       "order_status" : "New",
+//       "payment_status" : "Pending"
+//     }
+//     ]
+// }*/
+
+// // ======================= CREATE ORDER ===========================
+// export const createOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { buyer_id, order_type = "Order", products } = req.body;
+
+//     if (!buyer_id || !products || products.length === 0) {
+//       return res.status(400).json({ message: "buyer_id and products are required" });
+//     }
+
+//     // Create main order
+//     const [orderResult] = await pool.query(
+//       `INSERT INTO orders (buyer_id, order_type) VALUES (?, ?)`,
+//       [buyer_id, order_type]
+//     );
+
+//     const orderId = orderResult.insertId;
+
+//     // Insert products for the order
+//     for (const p of products) {
+//       await pool.query(
+//         `INSERT INTO order_products (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+//          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//         [
+//           orderId,
+//           p.product_id,
+//           p.seller_id || "",
+//           p.quantity || 1,
+//           p.price,
+//           p.order_status || "New",
+//           p.payment_status || "Pending",
+//         ]
+//       );
+//     }
+
+//     res.status(201).json({ message: "Order created successfully", order_id: orderId });
+//   } catch (err) {
+//     console.error("Error creating order:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+// // ======================= UPDATE ORDER ===========================
+// export const updateOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+//     const { buyer_id, order_type, products } = req.body;
+
+//     // Update order table
+//     await pool.query(
+//       `UPDATE orders SET buyer_id = ?, order_type = ?, updated_at = NOW() WHERE id = ?`,
+//       [buyer_id, order_type, id]
+//     );
+
+//     // Delete old product rows and reinsert
+//     if (products && products.length > 0) {
+//       await pool.query(`DELETE FROM order_products WHERE order_id = ?`, [id]);
+//       for (const p of products) {
+//         await pool.query(
+//           `INSERT INTO order_products (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+//            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//           [
+//             id,
+//             p.product_id,
+//             p.seller_id,
+//             p.quantity || 1,
+//             p.price,
+//             p.order_status || "New",
+//             p.payment_status || "Pending",
+//           ]
+//         );
+//       }
+//     }
+
+//     res.status(200).json({ message: "Order updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating order:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+// // ======================= UPDATE ORDER product status ===========================
+// export const updateOrderProductStatus = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { order_product_id } = req.params;
+//     const {order_status } = req.body;
+
+//     // Update order product status
+//     await pool.query(
+//       `UPDATE order_products SET order_status = ? WHERE id = ?`,
+//       [order_status,order_product_id]
+//     );
+
+//     res.status(200).json({ message: "Order Product status updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating order:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+// // ======================= GET ALL ORDERS ===========================
+// export const getAllOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//    // const [orders] = await pool.query(`SELECT * FROM orders ORDER BY id DESC`);
+//     const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
+//   FROM orders o
+//   LEFT JOIN buyer b ON o.buyer_id = b.id ORDER BY id DESC`);
+
+//     for (const order of orders) {
+//   //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//      const [products] = await pool.query( `
+//       SELECT
+//         op.*,p.*,sh.*,
+
+//         -- product details
+//         p.name AS product_name,
+//         p.brand AS product_brand,
+//         p.material AS product_material,
+//         p.f_image AS product_f_image,
+//         p.cat_id AS product_cat_id,
+//         p.cat_sub_id AS product_cat_sub_id,
+
+//         -- seller details
+//         s.name AS seller_name,
+//         s.mobile AS seller_phone
+
+//       FROM order_products op
+//       LEFT JOIN product p ON op.product_id = p.id
+//       LEFT JOIN seller s ON op.seller_id = s.id
+//       LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
+//       WHERE op.order_id = ?
+//     `, [order.id]);
+
+//     // 👉 FORMAT EXACT STRUCTURE YOU WANT
+//       order.products = products.map((p) => {
+//         // ---- STATUS LOGIC ----
+//   const status = (p.order_status || "").toLowerCase();
+
+// const isNewOrPending = ["new", "pending"].includes(status);
+//   const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//   const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//   const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//   const isDelivered = status === "delivered";
+//   const isCancelled = status === "cancelled";
+
+//   // ---- RETURN STRUCTURED PRODUCT ----
+//   return {
+
+//         id: p.id,
+//         order_id: p.order_id,
+//         product_id: p.product_id,
+//         seller_id: p.seller_id,
+//         quantity: p.quantity,
+//         price: p.price,
+//         order_status: p.order_status,
+//         payment_status: p.payment_status,
+//         trackingId:p.tracking_number,
+//         expectedDate:p.estimated_delivery_date,
+//         deliveredOn:p.actual_delivery_date,
+//         cancelledOn:p.cancelled_date,
+//         partnerName:p.courier_name,
+//         partnerCompany:p.courier_company_name,
+//         partnerPhone:p.courier_mobile,
+
+//         // 👉 Add new status fields
+//         status: p.order_status,
+//         isConfirmed,
+//         isShipped,
+//         isOutForDelivery,
+//         isDelivered,
+//         isCancelled,
+
+//         product_details: {
+//           name: p.product_name,
+//           sku: p.sku,
+//           status: p.status,
+//           detail: p.product_name,
+//           product_MRP:p.product_MRP,
+//           moq: p.moq,
+//           brand: p.product_brand,
+//           material: p.product_material,
+//           f_image: p.product_f_image,
+//           image_2 : p.image_2,
+//           image_3 :p.image_3,
+//           image_4 : p.image_4,
+//           made_in :p.made_in,
+//           specification :p.specification,
+//           warranty:p.warranty,
+//           cat_id: p.product_cat_id,
+//           cat_sub_id: p.product_cat_sub_id
+//         },
+
+//         seller_details: {
+//           seller_name: p.seller_name,
+//           seller_phone: p.seller_phone
+//         }
+//   }
+//       });
+
+//       // 🔥 ADD buyer_details & order_details STRUCTURE
+//       order.buyer_details = {
+//         buyer_id : order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS FROM ORDER
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+
+//     }
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= GET ORDER BY ID ===========================
+// export const getDataById = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+
+//      const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
+//   FROM orders o
+//   LEFT JOIN buyer b ON o.buyer_id = b.id WHERE o.id = ? ORDER BY id DESC`,[id]);
+
+//     for (const order of orders) {
+//   //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//      const [products] = await pool.query( `
+//       SELECT
+//         op.*,p.*,sh.*,
+
+//         -- product details
+//         p.name AS product_name,
+//         p.brand AS product_brand,
+//         p.material AS product_material,
+//         p.f_image AS product_f_image,
+//         p.cat_id AS product_cat_id,
+//         p.cat_sub_id AS product_cat_sub_id,
+
+//         -- seller details
+//         s.name AS seller_name,
+//         s.mobile AS seller_phone
+
+//       FROM order_products op
+//       LEFT JOIN product p ON op.product_id = p.id
+//       LEFT JOIN seller s ON op.seller_id = s.id
+//       LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
+//       WHERE op.order_id = ?
+//     `, [order.id]);
+
+//     // 👉 FORMAT EXACT STRUCTURE YOU WANT
+//       order.products = products.map((p) => {
+//         // ---- STATUS LOGIC ----
+//   const status = (p.order_status || "").toLowerCase();
+
+//   const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//   const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//   const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//   const isDelivered = status === "delivered";
+//   const isCancelled = status === "cancelled";
+
+//   // ---- RETURN STRUCTURED PRODUCT ----
+//   return {
+
+//         id: p.id,
+//         order_id: p.order_id,
+//         product_id: p.product_id,
+//         seller_id: p.seller_id,
+//         quantity: p.quantity,
+//         price: p.price,
+//         order_status: p.order_status,
+//         payment_status: p.payment_status,
+//         trackingId:p.tracking_number,
+//         expectedDate:p.estimated_delivery_date,
+//         deliveredOn:p.actual_delivery_date,
+//         cancelledOn:p.cancelled_date,
+//         partnerName:p.courier_name,
+//         partnerCompany:p.courier_company_name,
+//         partnerPhone:p.courier_mobile,
+
+//         //  Add new status fields
+//         status: p.order_status,
+//         isConfirmed,
+//         isShipped,
+//         isOutForDelivery,
+//         isDelivered,
+//         isCancelled,
+
+//         product_details: {
+//           name: p.product_name,
+//           sku: p.sku,
+//           status: p.status,
+//           detail: p.product_name,
+//           product_MRP:p.product_MRP,
+//           moq: p.moq,
+//           brand: p.product_brand,
+//           material: p.product_material,
+//           f_image: p.product_f_image,
+//           image_2 : p.image_2,
+//           image_3 :p.image_3,
+//           image_4 : p.image_4,
+//           made_in :p.made_in,
+//           specification :p.specification,
+//           warranty:p.warranty,
+//           cat_id: p.product_cat_id,
+//           cat_sub_id: p.product_cat_sub_id
+//         },
+
+//         seller_details: {
+//           seller_name: p.seller_name,
+//           seller_phone: p.seller_phone
+//         }
+//   }
+//       });
+
+//       //  ADD buyer_details & order_details STRUCTURE
+//       order.buyer_details = {
+//         buyer_id : order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS FROM ORDER
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+
+//     }
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching order:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// /*export const getDataById = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE id = ?`, [id]);
+//     if (orders.length === 0) return res.status(404).json({ message: "Order not found" });
+
+//     const order = orders[0];
+//     const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [id]);
+//     order.products = products;
+
+//     res.status(200).json(order);
+//   } catch (err) {
+//     console.error("Error fetching order:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };*/
+
+// // ======================= DELETE ORDER ===========================
+// export const deleteOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+
+//     await pool.query(`DELETE FROM orders WHERE id = ?`, [id]);
+
+//     res.status(200).json({ message: "Order deleted successfully" });
+//   } catch (err) {
+//     console.error("Error deleting order:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= FILTER: BY BUYER ID ===========================
+// // ======================= FILTER: BY BUYER ID ===========================
+// export const getAllOrderByBuyer = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { buyer_id } = req.params;
+
+//     // ===== GET ORDERS =====
+//     const [orders] = await pool.query(`
+//       SELECT
+//         o.*,
+//         b.name AS buyer_name,
+//         b.email AS buyer_email,
+//         b.mobile AS buyer_mobile
+//       FROM orders o
+//       LEFT JOIN buyer b ON o.buyer_id = b.id
+//       WHERE o.buyer_id = ?
+//       ORDER BY o.id DESC
+//     `, [buyer_id]);
+
+//     // ===== LOOP ORDERS =====
+//     for (const order of orders) {
+
+//       const [products] = await pool.query(`
+//         SELECT
+//           op.*,
+//           p.*,
+//           sh.*,
+
+//           -- product details
+//           p.name AS product_name,
+//           p.brand AS product_brand,
+//           p.material AS product_material,
+//           p.f_image AS product_f_image,
+//           p.cat_id AS product_cat_id,
+//           p.cat_sub_id AS product_cat_sub_id,
+
+//           -- seller details
+//           s.name AS seller_name,
+//           s.mobile AS seller_phone
+
+//         FROM order_products op
+//         LEFT JOIN product p ON op.product_id = p.id
+//         LEFT JOIN seller s ON op.seller_id = s.id
+//         LEFT JOIN shipping sh
+//           ON sh.product_id = p.id
+//           AND sh.order_id = op.order_id
+//         WHERE op.order_id = ?
+//       `, [order.id]);
+
+//       // ===== FORMAT PRODUCTS =====
+//       order.products = products.map((p) => {
+
+//         const status = (p.order_status || "").toLowerCase();
+
+//         const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//         const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//         const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//         const isDelivered = status === "delivered";
+//         const isCancelled = status === "cancelled";
+
+//         return {
+//           id: p.id,
+//           order_id: p.order_id,
+//           product_id: p.product_id,
+//           seller_id: p.seller_id,
+//           quantity: p.quantity,
+//           price: p.price,
+//           order_status: p.order_status,
+//           payment_status: p.payment_status,
+
+//           trackingId: p.tracking_number,
+//           expectedDate: p.estimated_delivery_date,
+//           deliveredOn: p.actual_delivery_date,
+//           cancelledOn: p.cancelled_date,
+//           partnerName: p.courier_name,
+//           partnerCompany: p.courier_company_name,
+//           partnerPhone: p.courier_mobile,
+
+//           status: p.order_status,
+//           isConfirmed,
+//           isShipped,
+//           isOutForDelivery,
+//           isDelivered,
+//           isCancelled,
+
+//           product_details: {
+//             name: p.product_name,
+//             sku: p.sku,
+//             status: p.status,
+//             detail: p.product_name,
+//             product_MRP: p.product_MRP,
+//             moq: p.moq,
+//             brand: p.product_brand,
+//             material: p.product_material,
+//             f_image: p.product_f_image,
+//             image_2: p.image_2,
+//             image_3: p.image_3,
+//             image_4: p.image_4,
+//             made_in: p.made_in,
+//             specification: p.specification,
+//             warranty: p.warranty,
+//             cat_id: p.product_cat_id,
+//             cat_sub_id: p.product_cat_sub_id
+//           },
+
+//           seller_details: {
+//             seller_name: p.seller_name,
+//             seller_phone: p.seller_phone
+//           }
+//         };
+//       });
+
+//       // ===== BUYER DETAILS STRUCTURE =====
+//       order.buyer_details = {
+//         buyer_id: order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+//     }
+
+//     res.status(200).json(orders);
+
+//   } catch (err) {
+//     console.error("Error fetching orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// /*// date 7/2/26
+// export const getAllOrderByBuyer = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+
+//     const { buyer_id } = req.params;
+
+//     //const [orders] = await pool.query(`SELECT * FROM orders WHERE buyer_id = ?`, [buyer_id]);
+//    // const [orders] = await pool.query(`SELECT * FROM orders ORDER BY id DESC`);
+//     const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
+//   FROM orders o
+//   LEFT JOIN buyer b ON o.buyer_id = b.id WHERE o.buyer_id = ? ORDER BY id DESC`,[buyer_id]);
+
+//     for (const order of orders) {
+//   //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//      const [products] = await pool.query( `
+//       SELECT
+//         op.*,p.*,sh.*,
+
+//         -- product details
+//         p.name AS product_name,
+//         p.brand AS product_brand,
+//         p.material AS product_material,
+//         p.f_image AS product_f_image,
+//         p.cat_id AS product_cat_id,
+//         p.cat_sub_id AS product_cat_sub_id,
+
+//         -- seller details
+//         s.name AS seller_name,
+//         s.mobile AS seller_phone
+
+//       FROM order_products op
+//       LEFT JOIN product p ON op.product_id = p.id
+//       LEFT JOIN seller s ON op.seller_id = s.id
+//       LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
+//       WHERE op.order_id = ?
+//     `, [order.id]);
+
+//     // 👉 FORMAT EXACT STRUCTURE YOU WANT
+//       order.products = products.map((p) => {
+//         // ---- STATUS LOGIC ----
+//   const status = (p.order_status || "").toLowerCase();
+
+//   const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//   const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//   const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//   const isDelivered = status === "delivered";
+//   const isCancelled = status === "cancelled";
+
+//   // ---- RETURN STRUCTURED PRODUCT ----
+//   return {
+
+//         id: p.id,
+//         order_id: op.order_id,
+//         product_id: p.id,
+//         seller_id: p.seller_id,
+//         quantity: op.quantity,
+//         price: op.price,
+//         order_status: op.order_status,
+//         payment_status: op.payment_status,
+//         trackingId:sh.tracking_number,
+//         expectedDate:sh.estimated_delivery_date,
+//         deliveredOn:sh.actual_delivery_date,
+//         cancelledOn:sh.cancelled_date,
+//         partnerName:sh.courier_name,
+//         partnerCompany:sh.courier_company_name,
+//         partnerPhone:sh.courier_mobile,
+
+//         // 👉 Add new status fields
+//         status: p.order_status,
+//         isConfirmed,
+//         isShipped,
+//         isOutForDelivery,
+//         isDelivered,
+//         isCancelled,
+
+//         product_details: {
+//           name: p.product_name,
+//           sku: p.sku,
+//           status: p.status,
+//           detail: p.product_name,
+//           product_MRP:p.product_MRP,
+//           moq: p.moq,
+//           brand: p.product_brand,
+//           material: p.product_material,
+//           f_image: p.product_f_image,
+//           image_2 : p.image_2,
+//           image_3 :p.image_3,
+//           image_4 : p.image_4,
+//           made_in :p.made_in,
+//           specification :p.specification,
+//           warranty:p.warranty,
+//           cat_id: p.product_cat_id,
+//           cat_sub_id: p.product_cat_sub_id
+//         },
+
+//         seller_details: {
+//           seller_name: s.seller_name,
+//           seller_phone: s.seller_phone
+//         }
+//   }
+//       });
+
+//       // 🔥 ADD buyer_details & order_details STRUCTURE
+//       order.buyer_details = {
+//         buyer_id : order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS FROM ORDER
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+
+//     }
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// */
+
+// /*export const getAllOrderByBuyer = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { buyer_id } = req.params;
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE buyer_id = ?`, [buyer_id]);
+//     if (orders.length === 0) return res.status(404).json({ message: "No orders found for this buyer" });
+
+//     for (const order of orders) {
+//       const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//       order.products = products;
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching buyer orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };*/
+
+// // ======================= FILTER: BY SELLER ID ===========================
+// export const getAllOrderBySeller = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { seller_id } = req.params;
+
+//     const [products] = await pool.query(`SELECT * FROM order_products WHERE seller_id = ?`, [seller_id]);
+//     if (products.length === 0) return res.status(404).json({ message: "No orders found for this seller" });
+
+//     // Fetch all orders those products belong to
+//     const orderIds = [...new Set(products.map(p => p.order_id))];
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE id IN (?)`, [orderIds]);
+
+//     for (const order of orders) {
+//       order.products = products.filter(p => p.order_id === order.id);
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching seller orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= FILTER: INQUIRY ORDERS ===========================
+// export const getAllOrderInquiry = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE order_type = 'Inquiry' ORDER BY id DESC`);
+//     if (orders.length === 0) return res.status(404).json({ message: "No inquiries found" });
+
+//     for (const order of orders) {
+//       const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//       order.products = products;
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching inquiries:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= FILTER: ORder type ORDERS ===========================
+// export const getAllOrderOrdertype = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE order_type = 'Order' ORDER BY id DESC`);
+//     if (orders.length === 0) return res.status(404).json({ message: "No inquiries found" });
+
+//     for (const order of orders) {
+//       const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//       order.products = products;
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching inquiries:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// import { connectDB } from "../../connection/db.js";
+// import bcrypt from "bcrypt";
+
+// //pid 68da4c56922dd5bc816126f9
+// // //.pid2  68da4c51922dd5bc816126f5
+// //buyer id :68d4deffde6c966bf42d56df
+// //seller id : 68d4f5a31788865eb5be9d3e
+// //order id : 68da638fe69e13874b77efce
+// /*
+
+// {
+//     "buyer_id": "68d4deffde6c966bf42d56df",
+//     "order_type": "Order",
+//     "products": [
+//     {
+//       "product_id": "68da4c56922dd5bc816126f9",
+//       "seller_id" : "68d4f5a31788865eb5be9d3e",
+//       "quantity": 2,
+//       "price": 49.99,
+//       "order_status" : "New",
+//       "payment_status" : "Pending"
+//     },
+//     {
+//       "product_id": "68da4c51922dd5bc816126f5",
+//       "seller_id": "68d4f5a31788865eb5be9d3e",
+//       "quantity": 1,
+//       "price": 100.00,
+//       "order_status" : "New",
+//       "payment_status" : "Pending"
+//     }
+//     ]
+// }*/
+
+// // ======================= CREATE ORDER ===========================
+// // export const createOrder = async (req, res) => {
+// //   try {
+// //     const pool = await connectDB();
+// //     const { buyer_id, order_type = "Order", products } = req.body;
+
+// //     if (!buyer_id || !products || products.length === 0) {
+// //       return res.status(400).json({ message: "buyer_id and products are required" });
+// //     }
+
+// //     // Create main order
+// //     const [orderResult] = await pool.query(
+// //       `INSERT INTO orders (buyer_id, order_type) VALUES (?, ?)`,
+// //       [buyer_id, order_type]
+// //     );
+
+// //     const orderId = orderResult.insertId;
+
+// //     // Insert products for the order
+// //     for (const p of products) {
+// //       await pool.query(
+// //         `INSERT INTO order_products (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+// //          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+// //         [
+// //           orderId,
+// //           p.product_id,
+// //           p.seller_id || "",
+// //           p.quantity || 1,
+// //           p.price,
+// //           p.order_status || "New",
+// //           p.payment_status || "Pending",
+// //         ]
+// //       );
+// //     }
+
+// //     res.status(201).json({ message: "Order created successfully", order_id: orderId });
+// //   } catch (err) {
+// //     console.error("Error creating order:", err);
+// //     res.status(500).json({ message: "Server error", error: err.message });
+// //   }
+// // };
+
+// export const createOrder = async (req, res) => {
+//   try {
+//     const { buyer_id, order_type = "Order", products } = req.body;
+
+//     // ── Validate top-level fields ──────────────────────────────────────────
+//     if (!buyer_id) {
+//       return res.status(400).json({ message: "buyer_id is required" });
+//     }
+
+//     if (!Array.isArray(products) || products.length === 0) {
+//       return res.status(400).json({ message: "products must be a non-empty array" });
+//     }
+
+//     // ── Validate each product ──────────────────────────────────────────────
+//     const productErrors = [];
+
+//     products.forEach((p, index) => {
+//       const errors = [];
+
+//       if (!p.product_id) errors.push("product_id is required");
+//       if (!p.seller_id)  errors.push("seller_id is required");
+
+//       if (p.price === undefined || p.price === null) {
+//         errors.push("price is required");
+//       } else if (isNaN(Number(p.price)) || Number(p.price) < 0) {
+//         errors.push("price must be a non-negative number");
+//       }
+
+//       if (p.quantity !== undefined && (isNaN(Number(p.quantity)) || Number(p.quantity) < 1)) {
+//         errors.push("quantity must be a positive number");
+//       }
+
+//       const validOrderStatuses   = ["New", "Processing", "Shipped", "Delivered", "Cancelled"];
+//       const validPaymentStatuses = ["Pending", "Paid", "Failed", "Refunded"];
+
+//       if (p.order_status && !validOrderStatuses.includes(p.order_status)) {
+//         errors.push(`order_status must be one of: ${validOrderStatuses.join(", ")}`);
+//       }
+
+//       if (p.payment_status && !validPaymentStatuses.includes(p.payment_status)) {
+//         errors.push(`payment_status must be one of: ${validPaymentStatuses.join(", ")}`);
+//       }
+
+//       if (errors.length > 0) {
+//         productErrors.push({ index, product_id: p.product_id ?? null, errors });
+//       }
+//     });
+
+//     if (productErrors.length > 0) {
+//       return res.status(400).json({ message: "Invalid product data", productErrors });
+//     }
+
+//     // ── DB operations ──────────────────────────────────────────────────────
+//     const pool = await connectDB();
+
+//     // Insert main order
+//     const [orderResult] = await pool.query(
+//       `INSERT INTO orders (buyer_id, order_type) VALUES (?, ?)`,
+//       [buyer_id, order_type]
+//     );
+//     const orderId = orderResult.insertId;
+
+//     // ✅ Loop insert — reliable across all mysql2 versions
+//     for (const p of products) {
+//       await pool.query(
+//         `INSERT INTO order_products
+//           (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+//          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//         [
+//           orderId,
+//           p.product_id,
+//           p.seller_id,
+//           Number(p.quantity) || 1,
+//           Number(p.price),
+//           p.order_status    || "New",
+//           p.payment_status  || "Pending",
+//         ]
+//       );
+//     }
+
+//     return res.status(201).json({ message: "Order created successfully", order_id: orderId });
+
+//   } catch (err) {
+//     console.error("Error creating order:", err);
+//     return res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+// // ======================= UPDATE ORDER ===========================
+// export const updateOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+//     const { buyer_id, order_type, products } = req.body;
+
+//     // Update order table
+//     await pool.query(
+//       `UPDATE orders SET buyer_id = ?, order_type = ?, updated_at = NOW() WHERE id = ?`,
+//       [buyer_id, order_type, id]
+//     );
+
+//     // Delete old product rows and reinsert
+//     if (products && products.length > 0) {
+//       await pool.query(`DELETE FROM order_products WHERE order_id = ?`, [id]);
+//       for (const p of products) {
+//         await pool.query(
+//           `INSERT INTO order_products (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+//           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//           [
+//             id,
+//             p.product_id,
+//             p.seller_id,
+//             p.quantity || 1,
+//             p.price,
+//             p.order_status || "New",
+//             p.payment_status || "Pending",
+//           ]
+//         );
+//       }
+//     }
+
+//     res.status(200).json({ message: "Order updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating order:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+// // ======================= UPDATE ORDER product status ===========================
+// export const updateOrderProductStatus = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { order_product_id } = req.params;
+//     const {order_status } = req.body;
+
+//     // Update order product status
+//     await pool.query(
+//       `UPDATE order_products SET order_status = ? WHERE id = ?`,
+//       [order_status,order_product_id]
+//     );
+
+//     res.status(200).json({ message: "Order Product status updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating order:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+// // ======================= GET ALL ORDERS ===========================
+// export const getAllOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//   // const [orders] = await pool.query(`SELECT * FROM orders ORDER BY id DESC`);
+//     const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
+//   FROM orders o
+//   LEFT JOIN buyer b ON o.buyer_id = b.id ORDER BY id DESC`);
+
+//     for (const order of orders) {
+//   //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//      const [products] = await pool.query( `
+//       SELECT
+//         op.*,p.*,sh.*,
+
+//         -- product details
+//         p.name AS product_name,
+//         p.brand AS product_brand,
+//         p.material AS product_material,
+//         p.f_image AS product_f_image,
+//         p.cat_id AS product_cat_id,
+//         p.cat_sub_id AS product_cat_sub_id,
+
+//         -- seller details
+//         s.name AS seller_name,
+//         s.mobile AS seller_phone
+
+//       FROM order_products op
+//       LEFT JOIN product p ON op.product_id = p.id
+//       LEFT JOIN seller s ON op.seller_id = s.id
+//       LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
+//       WHERE op.order_id = ?
+//     `, [order.id]);
+
+//     // ðŸ‘‰ FORMAT EXACT STRUCTURE YOU WANT
+//       order.products = products.map((p) => {
+//         // ---- STATUS LOGIC ----
+//   const status = (p.order_status || "").toLowerCase();
+
+// const isNewOrPending = ["new", "pending"].includes(status);
+//   const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//   const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//   const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//   const isDelivered = status === "delivered";
+//   const isCancelled = status === "cancelled";
+
+//   // ---- RETURN STRUCTURED PRODUCT ----
+//   return {
+
+//         id: p.id,
+//         order_id: p.order_id,
+//         product_id: p.product_id,
+//         seller_id: p.seller_id,
+//         quantity: p.quantity,
+//         price: p.price,
+//         order_status: p.order_status,
+//         payment_status: p.payment_status,
+//         trackingId:p.tracking_number,
+//         expectedDate:p.estimated_delivery_date,
+//         deliveredOn:p.actual_delivery_date,
+//         cancelledOn:p.cancelled_date,
+//         partnerName:p.courier_name,
+//         partnerCompany:p.courier_company_name,
+//         partnerPhone:p.courier_mobile,
+
+//         // ðŸ‘‰ Add new status fields
+//         status: p.order_status,
+//         isConfirmed,
+//         isShipped,
+//         isOutForDelivery,
+//         isDelivered,
+//         isCancelled,
+
+//         product_details: {
+//           name: p.product_name,
+//           sku: p.sku,
+//           status: p.status,
+//           detail: p.product_name,
+//           product_MRP:p.product_MRP,
+//           moq: p.moq,
+//           brand: p.product_brand,
+//           material: p.product_material,
+//           f_image: p.product_f_image,
+//           image_2 : p.image_2,
+//           image_3 :p.image_3,
+//           image_4 : p.image_4,
+//           made_in :p.made_in,
+//           specification :p.specification,
+//           warranty:p.warranty,
+//           cat_id: p.product_cat_id,
+//           cat_sub_id: p.product_cat_sub_id
+//         },
+
+//         seller_details: {
+//           seller_name: p.seller_name,
+//           seller_phone: p.seller_phone
+//         }
+//   }
+//       });
+
+//       // ðŸ”¥ ADD buyer_details & order_details STRUCTURE
+//       order.buyer_details = {
+//         buyer_id : order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS FROM ORDER
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+
+//     }
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= GET ORDER BY ID ===========================
+// export const getDataById = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+
+//      const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
+//   FROM orders o
+//   LEFT JOIN buyer b ON o.buyer_id = b.id WHERE o.id = ? ORDER BY id DESC`,[id]);
+
+//     for (const order of orders) {
+//   //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//      const [products] = await pool.query( `
+//       SELECT
+//         op.*,p.*,sh.*,
+
+//         -- product details
+//         p.name AS product_name,
+//         p.brand AS product_brand,
+//         p.material AS product_material,
+//         p.f_image AS product_f_image,
+//         p.cat_id AS product_cat_id,
+//         p.cat_sub_id AS product_cat_sub_id,
+
+//         -- seller details
+//         s.name AS seller_name,
+//         s.mobile AS seller_phone
+
+//       FROM order_products op
+//       LEFT JOIN product p ON op.product_id = p.id
+//       LEFT JOIN seller s ON op.seller_id = s.id
+//       LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
+//       WHERE op.order_id = ?
+//     `, [order.id]);
+
+//     // ðŸ‘‰ FORMAT EXACT STRUCTURE YOU WANT
+//       order.products = products.map((p) => {
+//         // ---- STATUS LOGIC ----
+//   const status = (p.order_status || "").toLowerCase();
+
+//   const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//   const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//   const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//   const isDelivered = status === "delivered";
+//   const isCancelled = status === "cancelled";
+
+//   // ---- RETURN STRUCTURED PRODUCT ----
+//   return {
+
+//         id: p.id,
+//         order_id: p.order_id,
+//         product_id: p.product_id,
+//         seller_id: p.seller_id,
+//         quantity: p.quantity,
+//         price: p.price,
+//         order_status: p.order_status,
+//         payment_status: p.payment_status,
+//         trackingId:p.tracking_number,
+//         expectedDate:p.estimated_delivery_date,
+//         deliveredOn:p.actual_delivery_date,
+//         cancelledOn:p.cancelled_date,
+//         partnerName:p.courier_name,
+//         partnerCompany:p.courier_company_name,
+//         partnerPhone:p.courier_mobile,
+
+//         //  Add new status fields
+//         status: p.order_status,
+//         isConfirmed,
+//         isShipped,
+//         isOutForDelivery,
+//         isDelivered,
+//         isCancelled,
+
+//         product_details: {
+//           name: p.product_name,
+//           sku: p.sku,
+//           status: p.status,
+//           detail: p.product_name,
+//           product_MRP:p.product_MRP,
+//           moq: p.moq,
+//           brand: p.product_brand,
+//           material: p.product_material,
+//           f_image: p.product_f_image,
+//           image_2 : p.image_2,
+//           image_3 :p.image_3,
+//           image_4 : p.image_4,
+//           made_in :p.made_in,
+//           specification :p.specification,
+//           warranty:p.warranty,
+//           cat_id: p.product_cat_id,
+//           cat_sub_id: p.product_cat_sub_id
+//         },
+
+//         seller_details: {
+//           seller_name: p.seller_name,
+//           seller_phone: p.seller_phone
+//         }
+//   }
+//       });
+
+//       //  ADD buyer_details & order_details STRUCTURE
+//       order.buyer_details = {
+//         buyer_id : order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS FROM ORDER
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+
+//     }
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching order:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// /*export const getDataById = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE id = ?`, [id]);
+//     if (orders.length === 0) return res.status(404).json({ message: "Order not found" });
+
+//     const order = orders[0];
+//     const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [id]);
+//     order.products = products;
+
+//     res.status(200).json(order);
+//   } catch (err) {
+//     console.error("Error fetching order:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };*/
+
+// // ======================= DELETE ORDER ===========================
+// export const deleteOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+
+//     await pool.query(`DELETE FROM orders WHERE id = ?`, [id]);
+
+//     res.status(200).json({ message: "Order deleted successfully" });
+//   } catch (err) {
+//     console.error("Error deleting order:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= FILTER: BY BUYER ID ===========================
+// // ======================= FILTER: BY BUYER ID ===========================
+// export const getAllOrderByBuyer = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { buyer_id } = req.params;
+
+//     // ===== GET ORDERS =====
+//     const [orders] = await pool.query(`
+//       SELECT
+//         o.*,
+//         b.name AS buyer_name,
+//         b.email AS buyer_email,
+//         b.mobile AS buyer_mobile
+//       FROM orders o
+//       LEFT JOIN buyer b ON o.buyer_id = b.id
+//       WHERE o.buyer_id = ?
+//       ORDER BY o.id DESC
+//     `, [buyer_id]);
+
+//     // ===== LOOP ORDERS =====
+//     for (const order of orders) {
+
+//       const [products] = await pool.query(`
+//         SELECT
+//           op.*,
+//           p.*,
+//           sh.*,
+
+//           -- product details
+//           p.name AS product_name,
+//           p.brand AS product_brand,
+//           p.material AS product_material,
+//           p.f_image AS product_f_image,
+//           p.cat_id AS product_cat_id,
+//           p.cat_sub_id AS product_cat_sub_id,
+
+//           -- seller details
+//           s.name AS seller_name,
+//           s.mobile AS seller_phone
+
+//         FROM order_products op
+//         LEFT JOIN product p ON op.product_id = p.id
+//         LEFT JOIN seller s ON op.seller_id = s.id
+//         LEFT JOIN shipping sh
+//           ON sh.product_id = p.id
+//           AND sh.order_id = op.order_id
+//         WHERE op.order_id = ?
+//       `, [order.id]);
+
+//       // ===== FORMAT PRODUCTS =====
+//       order.products = products.map((p) => {
+
+//         const status = (p.order_status || "").toLowerCase();
+
+//         const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//         const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//         const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//         const isDelivered = status === "delivered";
+//         const isCancelled = status === "cancelled";
+
+//         return {
+//           id: p.id,
+//           order_id: p.order_id,
+//           product_id: p.product_id,
+//           seller_id: p.seller_id,
+//           quantity: p.quantity,
+//           price: p.price,
+//           order_status: p.order_status,
+//           payment_status: p.payment_status,
+
+//           trackingId: p.tracking_number,
+//           expectedDate: p.estimated_delivery_date,
+//           deliveredOn: p.actual_delivery_date,
+//           cancelledOn: p.cancelled_date,
+//           partnerName: p.courier_name,
+//           partnerCompany: p.courier_company_name,
+//           partnerPhone: p.courier_mobile,
+
+//           status: p.order_status,
+//           isConfirmed,
+//           isShipped,
+//           isOutForDelivery,
+//           isDelivered,
+//           isCancelled,
+
+//           product_details: {
+//             name: p.product_name,
+//             sku: p.sku,
+//             status: p.status,
+//             detail: p.product_name,
+//             product_MRP: p.product_MRP,
+//             moq: p.moq,
+//             brand: p.product_brand,
+//             material: p.product_material,
+//             f_image: p.product_f_image,
+//             image_2: p.image_2,
+//             image_3: p.image_3,
+//             image_4: p.image_4,
+//             made_in: p.made_in,
+//             specification: p.specification,
+//             warranty: p.warranty,
+//             cat_id: p.product_cat_id,
+//             cat_sub_id: p.product_cat_sub_id
+//           },
+
+//           seller_details: {
+//             seller_name: p.seller_name,
+//             seller_phone: p.seller_phone
+//           }
+//         };
+//       });
+
+//       // ===== BUYER DETAILS STRUCTURE =====
+//       order.buyer_details = {
+//         buyer_id: order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+//     }
+
+//     res.status(200).json(orders);
+
+//   } catch (err) {
+//     console.error("Error fetching orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// /*// date 7/2/26
+// export const getAllOrderByBuyer = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+
+//     const { buyer_id } = req.params;
+
+//     //const [orders] = await pool.query(`SELECT * FROM orders WHERE buyer_id = ?`, [buyer_id]);
+//   // const [orders] = await pool.query(`SELECT * FROM orders ORDER BY id DESC`);
+//     const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
+//   FROM orders o
+//   LEFT JOIN buyer b ON o.buyer_id = b.id WHERE o.buyer_id = ? ORDER BY id DESC`,[buyer_id]);
+
+//     for (const order of orders) {
+//   //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//      const [products] = await pool.query( `
+//       SELECT
+//         op.*,p.*,sh.*,
+
+//         -- product details
+//         p.name AS product_name,
+//         p.brand AS product_brand,
+//         p.material AS product_material,
+//         p.f_image AS product_f_image,
+//         p.cat_id AS product_cat_id,
+//         p.cat_sub_id AS product_cat_sub_id,
+
+//         -- seller details
+//         s.name AS seller_name,
+//         s.mobile AS seller_phone
+
+//       FROM order_products op
+//       LEFT JOIN product p ON op.product_id = p.id
+//       LEFT JOIN seller s ON op.seller_id = s.id
+//       LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
+//       WHERE op.order_id = ?
+//     `, [order.id]);
+
+//     // ðŸ‘‰ FORMAT EXACT STRUCTURE YOU WANT
+//       order.products = products.map((p) => {
+//         // ---- STATUS LOGIC ----
+//   const status = (p.order_status || "").toLowerCase();
+
+//   const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
+//   const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
+//   const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
+//   const isDelivered = status === "delivered";
+//   const isCancelled = status === "cancelled";
+
+//   // ---- RETURN STRUCTURED PRODUCT ----
+//   return {
+
+//         id: p.id,
+//         order_id: op.order_id,
+//         product_id: p.id,
+//         seller_id: p.seller_id,
+//         quantity: op.quantity,
+//         price: op.price,
+//         order_status: op.order_status,
+//         payment_status: op.payment_status,
+//         trackingId:sh.tracking_number,
+//         expectedDate:sh.estimated_delivery_date,
+//         deliveredOn:sh.actual_delivery_date,
+//         cancelledOn:sh.cancelled_date,
+//         partnerName:sh.courier_name,
+//         partnerCompany:sh.courier_company_name,
+//         partnerPhone:sh.courier_mobile,
+
+//         // ðŸ‘‰ Add new status fields
+//         status: p.order_status,
+//         isConfirmed,
+//         isShipped,
+//         isOutForDelivery,
+//         isDelivered,
+//         isCancelled,
+
+//         product_details: {
+//           name: p.product_name,
+//           sku: p.sku,
+//           status: p.status,
+//           detail: p.product_name,
+//           product_MRP:p.product_MRP,
+//           moq: p.moq,
+//           brand: p.product_brand,
+//           material: p.product_material,
+//           f_image: p.product_f_image,
+//           image_2 : p.image_2,
+//           image_3 :p.image_3,
+//           image_4 : p.image_4,
+//           made_in :p.made_in,
+//           specification :p.specification,
+//           warranty:p.warranty,
+//           cat_id: p.product_cat_id,
+//           cat_sub_id: p.product_cat_sub_id
+//         },
+
+//         seller_details: {
+//           seller_name: s.seller_name,
+//           seller_phone: s.seller_phone
+//         }
+//   }
+//       });
+
+//       // ðŸ”¥ ADD buyer_details & order_details STRUCTURE
+//       order.buyer_details = {
+//         buyer_id : order.buyer_id,
+//         buyer_name: order.buyer_name,
+//         buyer_email: order.buyer_email,
+//         buyer_mobile: order.buyer_mobile,
+//       };
+
+//       // REMOVE FLAT BUYER FIELDS FROM ORDER
+//       delete order.buyer_id;
+//       delete order.buyer_name;
+//       delete order.buyer_email;
+//       delete order.buyer_mobile;
+
+//     }
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// */
+
+// /*export const getAllOrderByBuyer = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { buyer_id } = req.params;
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE buyer_id = ?`, [buyer_id]);
+//     if (orders.length === 0) return res.status(404).json({ message: "No orders found for this buyer" });
+
+//     for (const order of orders) {
+//       const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//       order.products = products;
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching buyer orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };*/
+
+// // ======================= FILTER: BY SELLER ID ===========================
+// export const getAllOrderBySeller = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { seller_id } = req.params;
+
+//     const [products] = await pool.query(`SELECT * FROM order_products WHERE seller_id = ?`, [seller_id]);
+//     if (products.length === 0) return res.status(404).json({ message: "No orders found for this seller" });
+
+//     // Fetch all orders those products belong to
+//     const orderIds = [...new Set(products.map(p => p.order_id))];
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE id IN (?)`, [orderIds]);
+
+//     for (const order of orders) {
+//       order.products = products.filter(p => p.order_id === order.id);
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching seller orders:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= FILTER: INQUIRY ORDERS ===========================
+// export const getAllOrderInquiry = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE order_type = 'Inquiry' ORDER BY id DESC`);
+//     if (orders.length === 0) return res.status(404).json({ message: "No inquiries found" });
+
+//     for (const order of orders) {
+//       const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//       order.products = products;
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching inquiries:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // ======================= FILTER: ORder type ORDERS ===========================
+// export const getAllOrderOrdertype = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+
+//     const [orders] = await pool.query(`SELECT * FROM orders WHERE order_type = 'Order' ORDER BY id DESC`);
+//     if (orders.length === 0) return res.status(404).json({ message: "No inquiries found" });
+
+//     for (const order of orders) {
+//       const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
+//       order.products = products;
+//     }
+
+//     res.status(200).json(orders);
+//   } catch (err) {
+//     console.error("Error fetching inquiries:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
 import { connectDB } from "../../connection/db.js";
-import bcrypt from "bcrypt";
 
+// =====================================================================
+//  SHARED HELPERS
+// =====================================================================
 
-//pid 68da4c56922dd5bc816126f9
-// //.pid2  68da4c51922dd5bc816126f5
-//buyer id :68d4deffde6c966bf42d56df
-//seller id : 68d4f5a31788865eb5be9d3e
-//order id : 68da638fe69e13874b77efce
-/*
+/** Reusable product SELECT — explicit aliases, no wildcards */
+const PRODUCT_SELECT_SQL = `
+  SELECT
+    op.id              AS op_id,
+    op.order_id        AS op_order_id,
+    op.product_id      AS op_product_id,
+    op.seller_id       AS op_seller_id,
+    op.quantity        AS op_quantity,
+    op.price           AS op_price,
+    op.order_status    AS op_order_status,
+    op.payment_status  AS op_payment_status,
 
-{
-    "buyer_id": "68d4deffde6c966bf42d56df",
-    "order_type": "Order",
-    "products": [
-    {
-      "product_id": "68da4c56922dd5bc816126f9",
-      "seller_id" : "68d4f5a31788865eb5be9d3e",
-      "quantity": 2,
-      "price": 49.99,
-      "order_status" : "New",
-      "payment_status" : "Pending"
+    p.name             AS product_name,
+    p.sku,
+    p.status,
+    p.product_MRP,
+    p.moq,
+    p.brand            AS product_brand,
+    p.material         AS product_material,
+    p.f_image          AS product_f_image,
+    p.image_2,
+    p.image_3,
+    p.image_4,
+    p.made_in,
+    p.specification,
+    p.warranty,
+    p.cat_id           AS product_cat_id,
+    p.cat_sub_id       AS product_cat_sub_id,
+
+    s.name             AS seller_name,
+    s.mobile           AS seller_phone,
+
+    sh.tracking_number,
+    sh.estimated_delivery_date,
+    sh.actual_delivery_date,
+    sh.cancelled_date,
+    sh.courier_name,
+    sh.courier_company_name,
+    sh.courier_mobile
+
+  FROM order_products op
+  LEFT JOIN product  p  ON op.product_id = p.id
+  LEFT JOIN seller   s  ON op.seller_id  = s.id
+  LEFT JOIN shipping sh ON sh.product_id = p.id AND sh.order_id = op.order_id
+  WHERE op.order_id = ?
+`;
+
+/** Map a raw DB product row → clean response object */
+const formatProduct = (p) => {
+  const status = (p.op_order_status || "").toLowerCase();
+
+  return {
+    id: p.op_id,
+    order_id: p.op_order_id,
+    product_id: p.op_product_id,
+    seller_id: p.op_seller_id,
+    quantity: p.op_quantity,
+    price: p.op_price,
+    order_status: p.op_order_status,
+    payment_status: p.op_payment_status,
+
+    trackingId: p.tracking_number ?? null,
+    expectedDate: p.estimated_delivery_date ?? null,
+    deliveredOn: p.actual_delivery_date ?? null,
+    cancelledOn: p.cancelled_date ?? null,
+    partnerName: p.courier_name ?? null,
+    partnerCompany: p.courier_company_name ?? null,
+    partnerPhone: p.courier_mobile ?? null,
+
+    status: p.op_order_status,
+    isConfirmed: [
+      "confirmed",
+      "shipped",
+      "out for delivery",
+      "delivered",
+    ].includes(status),
+    isShipped: ["shipped", "out for delivery", "delivered"].includes(status),
+    isOutForDelivery: ["out for delivery", "delivered"].includes(status),
+    isDelivered: status === "delivered",
+    isCancelled: status === "cancelled",
+
+    product_details: {
+      name: p.product_name ?? null,
+      sku: p.sku ?? null,
+      status: p.status ?? null,
+      detail: p.product_name ?? null,
+      product_MRP: p.product_MRP ?? null,
+      moq: p.moq ?? null,
+      brand: p.product_brand ?? null,
+      material: p.product_material ?? null,
+      f_image: p.product_f_image ?? null,
+      image_2: p.image_2 ?? null,
+      image_3: p.image_3 ?? null,
+      image_4: p.image_4 ?? null,
+      made_in: p.made_in ?? null,
+      specification: p.specification ?? null,
+      warranty: p.warranty ?? null,
+      cat_id: p.product_cat_id ?? null,
+      cat_sub_id: p.product_cat_sub_id ?? null,
     },
-    { 
-      "product_id": "68da4c51922dd5bc816126f5",
-      "seller_id": "68d4f5a31788865eb5be9d3e",
-      "quantity": 1,
-      "price": 100.00,
-      "order_status" : "New",
-      "payment_status" : "Pending"
-    }
-    ]
-}*/
 
-// ======================= CREATE ORDER ===========================
+    seller_details: {
+      seller_name: p.seller_name ?? null,
+      seller_phone: p.seller_phone ?? null,
+    },
+  };
+};
+
+/** Attach formatted products + buyer_details to each order row */
+const attachOrderDetails = async (pool, orders) => {
+  for (const order of orders) {
+    const [products] = await pool.query(PRODUCT_SELECT_SQL, [order.id]);
+    order.products = products.map(formatProduct);
+
+    order.buyer_details = {
+      buyer_id: order.buyer_id ?? null,
+      buyer_name: order.buyer_name ?? null,
+      buyer_email: order.buyer_email ?? null,
+      buyer_mobile: order.buyer_mobile ?? null,
+    };
+
+    delete order.buyer_id;
+    delete order.buyer_name;
+    delete order.buyer_email;
+    delete order.buyer_mobile;
+  }
+  return orders;
+};
+
+// =====================================================================
+//  CREATE ORDER
+// =====================================================================
 export const createOrder = async (req, res) => {
   try {
-    const pool = await connectDB();
     const { buyer_id, order_type = "Order", products } = req.body;
 
-    if (!buyer_id || !products || products.length === 0) {
-      return res.status(400).json({ message: "buyer_id and products are required" });
+    // ── Top-level validation ───────────────────────────────────────
+    if (!buyer_id) {
+      return res.status(400).json({ message: "buyer_id is required" });
+    }
+    if (!Array.isArray(products) || products.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "products must be a non-empty array" });
     }
 
-    // Create main order
+    // ── Per-product validation ─────────────────────────────────────
+    const VALID_ORDER_STATUSES = [
+      "New",
+      "Processing",
+      "Confirmed",
+      "Shipped",
+      "Out for Delivery",
+      "Delivered",
+      "Cancelled",
+    ];
+    const VALID_PAYMENT_STATUSES = ["Pending", "Paid", "Failed", "Refunded"];
+
+    const productErrors = [];
+    products.forEach((p, index) => {
+      const errors = [];
+
+      if (!p.product_id) errors.push("product_id is required");
+      if (!p.seller_id) errors.push("seller_id is required");
+      if (p.price === undefined || p.price === null)
+        errors.push("price is required");
+      else if (isNaN(Number(p.price)) || Number(p.price) < 0)
+        errors.push("price must be a non-negative number");
+      if (
+        p.quantity !== undefined &&
+        (isNaN(Number(p.quantity)) || Number(p.quantity) < 1)
+      )
+        errors.push("quantity must be a positive number");
+      if (p.order_status && !VALID_ORDER_STATUSES.includes(p.order_status))
+        errors.push(
+          `order_status must be one of: ${VALID_ORDER_STATUSES.join(", ")}`,
+        );
+      if (
+        p.payment_status &&
+        !VALID_PAYMENT_STATUSES.includes(p.payment_status)
+      )
+        errors.push(
+          `payment_status must be one of: ${VALID_PAYMENT_STATUSES.join(", ")}`,
+        );
+
+      if (errors.length > 0)
+        productErrors.push({ index, product_id: p.product_id ?? null, errors });
+    });
+
+    if (productErrors.length > 0) {
+      return res
+        .status(400)
+        .json({ message: "Invalid product data", productErrors });
+    }
+
+    // ── DB insert ──────────────────────────────────────────────────
+    const pool = await connectDB();
+
     const [orderResult] = await pool.query(
       `INSERT INTO orders (buyer_id, order_type) VALUES (?, ?)`,
-      [buyer_id, order_type]
+      [buyer_id, order_type],
     );
-
     const orderId = orderResult.insertId;
 
-    // Insert products for the order
     for (const p of products) {
       await pool.query(
-        `INSERT INTO order_products (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+        `INSERT INTO order_products
+           (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           p.product_id,
-          p.seller_id || "",
-          p.quantity || 1,
-          p.price,
+          p.seller_id,
+          Number(p.quantity) || 1,
+          Number(p.price),
           p.order_status || "New",
           p.payment_status || "Pending",
-        ]
+        ],
       );
     }
 
-    res.status(201).json({ message: "Order created successfully", order_id: orderId });
+    return res
+      .status(201)
+      .json({ message: "Order created successfully", order_id: orderId });
   } catch (err) {
     console.error("Error creating order:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
-// ======================= UPDATE ORDER ===========================
+// =====================================================================
+//  UPDATE ORDER
+// =====================================================================
 export const updateOrder = async (req, res) => {
   try {
     const pool = await connectDB();
     const { id } = req.params;
     const { buyer_id, order_type, products } = req.body;
 
-    // Update order table
+    if (!id) return res.status(400).json({ message: "Order id is required" });
+
+    // Check order exists
+    const [existing] = await pool.query(`SELECT id FROM orders WHERE id = ?`, [
+      id,
+    ]);
+    if (existing.length === 0)
+      return res.status(404).json({ message: "Order not found" });
+
     await pool.query(
       `UPDATE orders SET buyer_id = ?, order_type = ?, updated_at = NOW() WHERE id = ?`,
-      [buyer_id, order_type, id]
+      [buyer_id, order_type, id],
     );
 
-    // Delete old product rows and reinsert
-    if (products && products.length > 0) {
+    if (Array.isArray(products) && products.length > 0) {
       await pool.query(`DELETE FROM order_products WHERE order_id = ?`, [id]);
+
       for (const p of products) {
         await pool.query(
-          `INSERT INTO order_products (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+          `INSERT INTO order_products
+             (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             p.product_id,
             p.seller_id,
-            p.quantity || 1,
-            p.price,
+            Number(p.quantity) || 1,
+            Number(p.price),
             p.order_status || "New",
             p.payment_status || "Pending",
-          ]
+          ],
         );
       }
     }
 
-    res.status(200).json({ message: "Order updated successfully" });
+    return res.status(200).json({ message: "Order updated successfully" });
   } catch (err) {
     console.error("Error updating order:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
-// ======================= UPDATE ORDER product status ===========================
+// =====================================================================
+//  UPDATE ORDER PRODUCT STATUS
+// =====================================================================
+// export const updateOrderProductStatus = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { order_product_id } = req.params;
+//     const { order_status } = req.body;
+
+//     if (!order_product_id)
+//       return res.status(400).json({ message: "order_product_id is required" });
+//     if (!order_status)
+//       return res.status(400).json({ message: "order_status is required" });
+
+//     const VALID_ORDER_STATUSES = [
+//       "New",
+//       "Processing",
+//       "Confirmed",
+//       "Shipped",
+//       "Out for Delivery",
+//       "Delivered",
+//       "Cancelled",
+//     ];
+//     if (!VALID_ORDER_STATUSES.includes(order_status)) {
+//       return res
+//         .status(400)
+//         .json({
+//           message: `order_status must be one of: ${VALID_ORDER_STATUSES.join(", ")}`,
+//         });
+//     }
+
+//     const [existing] = await pool.query(
+//       `SELECT id FROM order_products WHERE id = ?`,
+//       [order_product_id],
+//     );
+//     if (existing.length === 0)
+//       return res.status(404).json({ message: "Order product not found" });
+
+//     await pool.query(
+//       `UPDATE order_products SET order_status = ? WHERE id = ?`,
+//       [order_status, order_product_id],
+//     );
+
+//     return res
+//       .status(200)
+//       .json({ message: "Order product status updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating order product status:", err);
+//     return res
+//       .status(500)
+//       .json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const updateOrderProductStatus = async (req, res) => {
+  let conn;
   try {
     const pool = await connectDB();
-    const { order_product_id } = req.params;
-    const {order_status } = req.body;
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-    // Update order product status
-    await pool.query(
-      `UPDATE order_products SET order_status = ? WHERE id = ?`,
-      [order_status,order_product_id]
+    const { order_product_id } = req.params;
+    const { order_status } = req.body;
+
+    if (!order_product_id) {
+      await conn.rollback();
+      return res.status(400).json({ message: "order_product_id is required" });
+    }
+    if (!order_status) {
+      await conn.rollback();
+      return res.status(400).json({ message: "order_status is required" });
+    }
+
+    const VALID_ORDER_STATUSES = [
+      "New",
+      "Processing",
+      "Confirmed",
+      "Shipped",
+      "Out for Delivery",
+      "Delivered",
+      "Cancelled",
+    ];
+    if (!VALID_ORDER_STATUSES.includes(order_status)) {
+      await conn.rollback();
+      return res.status(400).json({
+        message: `order_status must be one of: ${VALID_ORDER_STATUSES.join(", ")}`,
+      });
+    }
+
+    // Fetch current order_product with all required fields
+    const [[existing]] = await conn.query(
+      `SELECT op.id, op.order_status, op.quantity, op.product_id, op.seller_id, op.order_id
+       FROM order_products op
+       WHERE op.id = ?`,
+      [order_product_id],
     );
 
-    res.status(200).json({ message: "Order Product status updated successfully" });
+    if (!existing) {
+      await conn.rollback();
+      return res.status(404).json({ message: "Order product not found" });
+    }
+
+    const wasConfirmed = existing.order_status?.toLowerCase() === "confirmed";
+    const isNowConfirmed = order_status?.toLowerCase() === "confirmed";
+    const isCancelled = order_status?.toLowerCase() === "cancelled";
+    const orderedQty = Number(existing.quantity);
+
+    // Update order_products status
+    await conn.query(
+      `UPDATE order_products SET order_status = ? WHERE id = ?`,
+      [order_status, order_product_id],
+    );
+
+    // ── Case 1: Newly confirmed → deduct stock ──────────────
+    if (isNowConfirmed && !wasConfirmed) {
+      const [[prod]] = await conn.query(
+        `SELECT quantity, seller_id FROM product WHERE id = ? FOR UPDATE`,
+        [existing.product_id],
+      );
+      if (prod) {
+        const quantityBefore = Number(prod.quantity);
+        const quantityAfter = Math.max(0, quantityBefore - orderedQty);
+
+        await conn.query(`UPDATE product SET quantity = ? WHERE id = ?`, [
+          quantityAfter,
+          existing.product_id,
+        ]);
+        await conn.query(
+          `INSERT INTO product_inventory
+             (product_id, seller_id, change_type, quantity_change,
+              quantity_before, quantity_after, order_type, order_id, note)
+           VALUES (?, ?, 'deduct', ?, ?, ?, 'order', ?, 'Order confirmed - stock deducted')`,
+          [
+            existing.product_id,
+            prod.seller_id,
+            orderedQty,
+            quantityBefore,
+            quantityAfter,
+            existing.order_id,
+          ],
+        );
+      }
+    }
+
+    // ── Case 2: Was confirmed, now cancelled → restore stock ─
+    if (isCancelled && wasConfirmed) {
+      const [[prod]] = await conn.query(
+        `SELECT quantity, seller_id FROM product WHERE id = ? FOR UPDATE`,
+        [existing.product_id],
+      );
+      if (prod) {
+        const quantityBefore = Number(prod.quantity);
+        const quantityAfter = quantityBefore + orderedQty;
+
+        await conn.query(`UPDATE product SET quantity = ? WHERE id = ?`, [
+          quantityAfter,
+          existing.product_id,
+        ]);
+        await conn.query(
+          `INSERT INTO product_inventory
+             (product_id, seller_id, change_type, quantity_change,
+              quantity_before, quantity_after, order_type, order_id, note)
+           VALUES (?, ?, 'add', ?, ?, ?, 'order', ?, 'Order cancelled - stock restored')`,
+          [
+            existing.product_id,
+            prod.seller_id,
+            orderedQty,
+            quantityBefore,
+            quantityAfter,
+            existing.order_id,
+          ],
+        );
+      }
+    }
+
+    await conn.commit();
+    return res
+      .status(200)
+      .json({ message: "Order product status updated successfully" });
   } catch (err) {
-    console.error("Error updating order:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    if (conn) await conn.rollback();
+    console.error("Error updating order product status:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
+  } finally {
+    if (conn) conn.release();
   }
 };
 
-
-
-
-
-
-// ======================= GET ALL ORDERS ===========================
+// =====================================================================
+//  GET ALL ORDERS
+// =====================================================================
 export const getAllOrder = async (req, res) => {
   try {
     const pool = await connectDB();
-   // const [orders] = await pool.query(`SELECT * FROM orders ORDER BY id DESC`);
-    const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
-  FROM orders o
-  LEFT JOIN buyer b ON o.buyer_id = b.id ORDER BY id DESC`);
-  
-  
 
-    for (const order of orders) {
-  //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
-     const [products] = await pool.query( `
-      SELECT 
-        op.*,p.*,sh.*,
+    const [orders] = await pool.query(`
+      SELECT o.id, o.order_type, o.created_at, o.updated_at,
+             o.buyer_id,
+             b.name  AS buyer_name,
+             b.email AS buyer_email,
+             b.mobile AS buyer_mobile
+      FROM orders o
+      LEFT JOIN buyer b ON o.buyer_id = b.id
+      ORDER BY o.id DESC
+    `);
 
-        -- product details
-        p.name AS product_name,
-        p.brand AS product_brand,
-        p.material AS product_material,
-        p.f_image AS product_f_image,
-        p.cat_id AS product_cat_id,
-        p.cat_sub_id AS product_cat_sub_id,
-
-        -- seller details
-        s.name AS seller_name,
-        s.mobile AS seller_phone
-
-      FROM order_products op
-      LEFT JOIN product p ON op.product_id = p.id
-      LEFT JOIN seller s ON op.seller_id = s.id
-      LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
-      WHERE op.order_id = ?
-    `, [order.id]);
- 
-    
-    // 👉 FORMAT EXACT STRUCTURE YOU WANT
-      order.products = products.map((p) => {
-        // ---- STATUS LOGIC ----
-  const status = (p.order_status || "").toLowerCase();
-
-
-
-const isNewOrPending = ["new", "pending"].includes(status);
-  const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
-  const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
-  const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
-  const isDelivered = status === "delivered";
-  const isCancelled = status === "cancelled";
-  
-
-  
-
-  // ---- RETURN STRUCTURED PRODUCT ----
-  return {
-          
-        id: p.id,
-        order_id: p.order_id,
-        product_id: p.product_id,
-        seller_id: p.seller_id,
-        quantity: p.quantity,
-        price: p.price,
-        order_status: p.order_status,
-        payment_status: p.payment_status,
-        trackingId:p.tracking_number,
-        expectedDate:p.estimated_delivery_date,
-        deliveredOn:p.actual_delivery_date,
-        cancelledOn:p.cancelled_date,
-        partnerName:p.courier_name,
-        partnerCompany:p.courier_company_name,
-        partnerPhone:p.courier_mobile,
-        
-        
-        // 👉 Add new status fields
-        status: p.order_status,
-        isConfirmed,
-        isShipped,
-        isOutForDelivery,
-        isDelivered,
-        isCancelled,
-        
-
-        product_details: {
-          name: p.product_name,
-          sku: p.sku,
-          status: p.status,
-          detail: p.product_name,
-          product_MRP:p.product_MRP,
-          moq: p.moq,
-          brand: p.product_brand,
-          material: p.product_material,
-          f_image: p.product_f_image,
-          image_2 : p.image_2,
-          image_3 :p.image_3,
-          image_4 : p.image_4,
-          made_in :p.made_in,
-          specification :p.specification,
-          warranty:p.warranty,
-          cat_id: p.product_cat_id,
-          cat_sub_id: p.product_cat_sub_id
-        },
-
-        seller_details: {
-          seller_name: p.seller_name,
-          seller_phone: p.seller_phone
-        }
-  }
-      });
-      
-      // 🔥 ADD buyer_details & order_details STRUCTURE
-      order.buyer_details = {
-        buyer_id : order.buyer_id,  
-        buyer_name: order.buyer_name,
-        buyer_email: order.buyer_email,
-        buyer_mobile: order.buyer_mobile,
-      };
-      
-      // REMOVE FLAT BUYER FIELDS FROM ORDER
-      delete order.buyer_id;
-      delete order.buyer_name;
-      delete order.buyer_email;
-      delete order.buyer_mobile;
-      
-    }
-    res.status(200).json(orders);
+    await attachOrderDetails(pool, orders);
+    return res.status(200).json(orders);
   } catch (err) {
     console.error("Error fetching orders:", err);
-    res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
-
-// ======================= GET ORDER BY ID ===========================
+// =====================================================================
+//  GET ORDER BY ID
+// =====================================================================
 export const getDataById = async (req, res) => {
   try {
     const pool = await connectDB();
     const { id } = req.params;
 
-     const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
-  FROM orders o
-  LEFT JOIN buyer b ON o.buyer_id = b.id WHERE o.id = ? ORDER BY id DESC`,[id]);
-  
-  
+    if (!id) return res.status(400).json({ message: "Order id is required" });
 
-    for (const order of orders) {
-  //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
-     const [products] = await pool.query( `
-      SELECT 
-        op.*,p.*,sh.*,
+    const [orders] = await pool.query(
+      `
+      SELECT o.id, o.order_type, o.created_at, o.updated_at,
+             o.buyer_id,
+             b.name  AS buyer_name,
+             b.email AS buyer_email,
+             b.mobile AS buyer_mobile
+      FROM orders o
+      LEFT JOIN buyer b ON o.buyer_id = b.id
+      WHERE o.id = ?
+    `,
+      [id],
+    );
 
-        -- product details
-        p.name AS product_name,
-        p.brand AS product_brand,
-        p.material AS product_material,
-        p.f_image AS product_f_image,
-        p.cat_id AS product_cat_id,
-        p.cat_sub_id AS product_cat_sub_id,
+    if (orders.length === 0)
+      return res.status(404).json({ message: "Order not found" });
 
-        -- seller details
-        s.name AS seller_name,
-        s.mobile AS seller_phone
-
-      FROM order_products op
-      LEFT JOIN product p ON op.product_id = p.id
-      LEFT JOIN seller s ON op.seller_id = s.id
-      LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
-      WHERE op.order_id = ?
-    `, [order.id]);
- 
-    
-    // 👉 FORMAT EXACT STRUCTURE YOU WANT
-      order.products = products.map((p) => {
-        // ---- STATUS LOGIC ----
-  const status = (p.order_status || "").toLowerCase();
-
-
-
-  const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
-  const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
-  const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
-  const isDelivered = status === "delivered";
-  const isCancelled = status === "cancelled";
-
-  // ---- RETURN STRUCTURED PRODUCT ----
-  return {
-          
-        id: p.id,
-        order_id: p.order_id,
-        product_id: p.product_id,
-        seller_id: p.seller_id,
-        quantity: p.quantity,
-        price: p.price,
-        order_status: p.order_status,
-        payment_status: p.payment_status,
-        trackingId:p.tracking_number,
-        expectedDate:p.estimated_delivery_date,
-        deliveredOn:p.actual_delivery_date,
-        cancelledOn:p.cancelled_date,
-        partnerName:p.courier_name,
-        partnerCompany:p.courier_company_name,
-        partnerPhone:p.courier_mobile,
-        
-    
-        //  Add new status fields
-        status: p.order_status,
-        isConfirmed,
-        isShipped,
-        isOutForDelivery,
-        isDelivered,
-        isCancelled,
-        
-
-        product_details: {
-          name: p.product_name,
-          sku: p.sku,
-          status: p.status,
-          detail: p.product_name,
-          product_MRP:p.product_MRP,
-          moq: p.moq,
-          brand: p.product_brand,
-          material: p.product_material,
-          f_image: p.product_f_image,
-          image_2 : p.image_2,
-          image_3 :p.image_3,
-          image_4 : p.image_4,
-          made_in :p.made_in,
-          specification :p.specification,
-          warranty:p.warranty,
-          cat_id: p.product_cat_id,
-          cat_sub_id: p.product_cat_sub_id
-        },
-
-        seller_details: {
-          seller_name: p.seller_name,
-          seller_phone: p.seller_phone
-        }
-  }
-      });
-      
-      //  ADD buyer_details & order_details STRUCTURE
-      order.buyer_details = {
-        buyer_id : order.buyer_id,  
-        buyer_name: order.buyer_name,
-        buyer_email: order.buyer_email,
-        buyer_mobile: order.buyer_mobile,
-      };
-      
-      // REMOVE FLAT BUYER FIELDS FROM ORDER
-      delete order.buyer_id;
-      delete order.buyer_name;
-      delete order.buyer_email;
-      delete order.buyer_mobile;
-      
-    }
-    res.status(200).json(orders);
+    await attachOrderDetails(pool, orders);
+    return res.status(200).json(orders[0]);
   } catch (err) {
     console.error("Error fetching order:", err);
-    res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
-
-
-/*export const getDataById = async (req, res) => {
-  try {
-    const pool = await connectDB();
-    const { id } = req.params;
-
-    const [orders] = await pool.query(`SELECT * FROM orders WHERE id = ?`, [id]);
-    if (orders.length === 0) return res.status(404).json({ message: "Order not found" });
-
-    const order = orders[0];
-    const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [id]);
-    order.products = products;
-
-    res.status(200).json(order);
-  } catch (err) {
-    console.error("Error fetching order:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};*/
-
-// ======================= DELETE ORDER ===========================
-export const deleteOrder = async (req, res) => {
-  try {
-    const pool = await connectDB();
-    const { id } = req.params;
-
-    await pool.query(`DELETE FROM orders WHERE id = ?`, [id]);
-
-    res.status(200).json({ message: "Order deleted successfully" });
-  } catch (err) {
-    console.error("Error deleting order:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ======================= FILTER: BY BUYER ID ===========================
-// ======================= FILTER: BY BUYER ID ===========================
+// =====================================================================
+//  GET ALL ORDERS BY BUYER
+// =====================================================================
 export const getAllOrderByBuyer = async (req, res) => {
   try {
     const pool = await connectDB();
     const { buyer_id } = req.params;
 
-    // ===== GET ORDERS =====
-    const [orders] = await pool.query(`
-      SELECT 
-        o.*, 
-        b.name AS buyer_name, 
-        b.email AS buyer_email, 
-        b.mobile AS buyer_mobile
+    if (!buyer_id)
+      return res.status(400).json({ message: "buyer_id is required" });
+
+    const [orders] = await pool.query(
+      `
+      SELECT o.id, o.order_type, o.created_at, o.updated_at,
+             o.buyer_id,
+             b.name  AS buyer_name,
+             b.email AS buyer_email,
+             b.mobile AS buyer_mobile
       FROM orders o
-      LEFT JOIN buyer b ON o.buyer_id = b.id 
+      LEFT JOIN buyer b ON o.buyer_id = b.id
       WHERE o.buyer_id = ?
       ORDER BY o.id DESC
-    `, [buyer_id]);
+    `,
+      [buyer_id],
+    );
 
-    // ===== LOOP ORDERS =====
-    for (const order of orders) {
+    if (orders.length === 0)
+      return res
+        .status(404)
+        .json({ message: "No orders found for this buyer" });
 
-      const [products] = await pool.query(`
-        SELECT 
-          op.*,
-          p.*,
-          sh.*,
-
-          -- product details
-          p.name AS product_name,
-          p.brand AS product_brand,
-          p.material AS product_material,
-          p.f_image AS product_f_image,
-          p.cat_id AS product_cat_id,
-          p.cat_sub_id AS product_cat_sub_id,
-
-          -- seller details
-          s.name AS seller_name,
-          s.mobile AS seller_phone
-
-        FROM order_products op
-        LEFT JOIN product p ON op.product_id = p.id
-        LEFT JOIN seller s ON op.seller_id = s.id
-        LEFT JOIN shipping sh 
-          ON sh.product_id = p.id 
-          AND sh.order_id = op.order_id
-        WHERE op.order_id = ?
-      `, [order.id]);
-
-      // ===== FORMAT PRODUCTS =====
-      order.products = products.map((p) => {
-
-        const status = (p.order_status || "").toLowerCase();
-
-        const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
-        const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
-        const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
-        const isDelivered = status === "delivered";
-        const isCancelled = status === "cancelled";
-
-        return {
-          id: p.id,
-          order_id: p.order_id,
-          product_id: p.product_id,
-          seller_id: p.seller_id,
-          quantity: p.quantity,
-          price: p.price,
-          order_status: p.order_status,
-          payment_status: p.payment_status,
-
-          trackingId: p.tracking_number,
-          expectedDate: p.estimated_delivery_date,
-          deliveredOn: p.actual_delivery_date,
-          cancelledOn: p.cancelled_date,
-          partnerName: p.courier_name,
-          partnerCompany: p.courier_company_name,
-          partnerPhone: p.courier_mobile,
-
-          status: p.order_status,
-          isConfirmed,
-          isShipped,
-          isOutForDelivery,
-          isDelivered,
-          isCancelled,
-
-          product_details: {
-            name: p.product_name,
-            sku: p.sku,
-            status: p.status,
-            detail: p.product_name,
-            product_MRP: p.product_MRP,
-            moq: p.moq,
-            brand: p.product_brand,
-            material: p.product_material,
-            f_image: p.product_f_image,
-            image_2: p.image_2,
-            image_3: p.image_3,
-            image_4: p.image_4,
-            made_in: p.made_in,
-            specification: p.specification,
-            warranty: p.warranty,
-            cat_id: p.product_cat_id,
-            cat_sub_id: p.product_cat_sub_id
-          },
-
-          seller_details: {
-            seller_name: p.seller_name,
-            seller_phone: p.seller_phone
-          }
-        };
-      });
-
-      // ===== BUYER DETAILS STRUCTURE =====
-      order.buyer_details = {
-        buyer_id: order.buyer_id,
-        buyer_name: order.buyer_name,
-        buyer_email: order.buyer_email,
-        buyer_mobile: order.buyer_mobile,
-      };
-
-      // REMOVE FLAT BUYER FIELDS
-      delete order.buyer_id;
-      delete order.buyer_name;
-      delete order.buyer_email;
-      delete order.buyer_mobile;
-    }
-
-    res.status(200).json(orders);
-
-  } catch (err) {
-    console.error("Error fetching orders:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-
-
-/*// date 7/2/26
-export const getAllOrderByBuyer = async (req, res) => {
-  try {
-    const pool = await connectDB();
-    
-    const { buyer_id } = req.params;
-
-    //const [orders] = await pool.query(`SELECT * FROM orders WHERE buyer_id = ?`, [buyer_id]);
-   // const [orders] = await pool.query(`SELECT * FROM orders ORDER BY id DESC`);
-    const [orders] = await pool.query(`SELECT o.*, b.name AS buyer_name, b.email AS buyer_email, b.mobile AS buyer_mobile
-  FROM orders o
-  LEFT JOIN buyer b ON o.buyer_id = b.id WHERE o.buyer_id = ? ORDER BY id DESC`,[buyer_id]);
-  
-  
-
-    for (const order of orders) {
-  //   const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
-     const [products] = await pool.query( `
-      SELECT 
-        op.*,p.*,sh.*,
-
-        -- product details
-        p.name AS product_name,
-        p.brand AS product_brand,
-        p.material AS product_material,
-        p.f_image AS product_f_image,
-        p.cat_id AS product_cat_id,
-        p.cat_sub_id AS product_cat_sub_id,
-
-        -- seller details
-        s.name AS seller_name,
-        s.mobile AS seller_phone
-
-      FROM order_products op
-      LEFT JOIN product p ON op.product_id = p.id
-      LEFT JOIN seller s ON op.seller_id = s.id
-      LEFT JOIN shipping sh on sh.product_id = p.id AND sh.order_id = op.order_id
-      WHERE op.order_id = ?
-    `, [order.id]);
- 
-    
-    // 👉 FORMAT EXACT STRUCTURE YOU WANT
-      order.products = products.map((p) => {
-        // ---- STATUS LOGIC ----
-  const status = (p.order_status || "").toLowerCase();
-
-  const isConfirmed = ["confirmed", "shipped", "out for delivery", "delivered"].includes(status);
-  const isShipped = ["shipped", "out for delivery", "delivered"].includes(status);
-  const isOutForDelivery = ["out for delivery", "delivered"].includes(status);
-  const isDelivered = status === "delivered";
-  const isCancelled = status === "cancelled";
-
-  // ---- RETURN STRUCTURED PRODUCT ----
-  return {
-          
-        id: p.id,
-        order_id: op.order_id,
-        product_id: p.id,
-        seller_id: p.seller_id,
-        quantity: op.quantity,
-        price: op.price,
-        order_status: op.order_status,
-        payment_status: op.payment_status,
-        trackingId:sh.tracking_number,
-        expectedDate:sh.estimated_delivery_date,
-        deliveredOn:sh.actual_delivery_date,
-        cancelledOn:sh.cancelled_date,
-        partnerName:sh.courier_name,
-        partnerCompany:sh.courier_company_name,
-        partnerPhone:sh.courier_mobile,
-        
-        
-        // 👉 Add new status fields
-        status: p.order_status,
-        isConfirmed,
-        isShipped,
-        isOutForDelivery,
-        isDelivered,
-        isCancelled,
-        
-
-        product_details: {
-          name: p.product_name,
-          sku: p.sku,
-          status: p.status,
-          detail: p.product_name,
-          product_MRP:p.product_MRP,
-          moq: p.moq,
-          brand: p.product_brand,
-          material: p.product_material,
-          f_image: p.product_f_image,
-          image_2 : p.image_2,
-          image_3 :p.image_3,
-          image_4 : p.image_4,
-          made_in :p.made_in,
-          specification :p.specification,
-          warranty:p.warranty,
-          cat_id: p.product_cat_id,
-          cat_sub_id: p.product_cat_sub_id
-        },
-
-        seller_details: {
-          seller_name: s.seller_name,
-          seller_phone: s.seller_phone
-        }
-  }
-      });
-      
-      // 🔥 ADD buyer_details & order_details STRUCTURE
-      order.buyer_details = {
-        buyer_id : order.buyer_id,  
-        buyer_name: order.buyer_name,
-        buyer_email: order.buyer_email,
-        buyer_mobile: order.buyer_mobile,
-      };
-      
-      // REMOVE FLAT BUYER FIELDS FROM ORDER
-      delete order.buyer_id;
-      delete order.buyer_name;
-      delete order.buyer_email;
-      delete order.buyer_mobile;
-      
-    }
-    res.status(200).json(orders);
-  } catch (err) {
-    console.error("Error fetching orders:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-*/
-
-
-/*export const getAllOrderByBuyer = async (req, res) => {
-  try {
-    const pool = await connectDB();
-    const { buyer_id } = req.params;
-
-    const [orders] = await pool.query(`SELECT * FROM orders WHERE buyer_id = ?`, [buyer_id]);
-    if (orders.length === 0) return res.status(404).json({ message: "No orders found for this buyer" });
-
-    for (const order of orders) {
-      const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
-      order.products = products;
-    }
-
-    res.status(200).json(orders);
+    await attachOrderDetails(pool, orders);
+    return res.status(200).json(orders);
   } catch (err) {
     console.error("Error fetching buyer orders:", err);
-    res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
-};*/
+};
 
-// ======================= FILTER: BY SELLER ID ===========================
+// =====================================================================
+//  GET ALL ORDERS BY SELLER
+// =====================================================================
 export const getAllOrderBySeller = async (req, res) => {
   try {
     const pool = await connectDB();
     const { seller_id } = req.params;
 
-    const [products] = await pool.query(`SELECT * FROM order_products WHERE seller_id = ?`, [seller_id]);
-    if (products.length === 0) return res.status(404).json({ message: "No orders found for this seller" });
+    if (!seller_id)
+      return res.status(400).json({ message: "seller_id is required" });
 
-    // Fetch all orders those products belong to
-    const orderIds = [...new Set(products.map(p => p.order_id))];
-    const [orders] = await pool.query(`SELECT * FROM orders WHERE id IN (?)`, [orderIds]);
+    const [opRows] = await pool.query(
+      `SELECT DISTINCT order_id FROM order_products WHERE seller_id = ?`,
+      [seller_id],
+    );
 
-    for (const order of orders) {
-      order.products = products.filter(p => p.order_id === order.id);
-    }
+    if (opRows.length === 0)
+      return res
+        .status(404)
+        .json({ message: "No orders found for this seller" });
 
-    res.status(200).json(orders);
+    const orderIds = opRows.map((r) => r.order_id);
+
+    const [orders] = await pool.query(
+      `
+      SELECT o.id, o.order_type, o.created_at, o.updated_at,
+             o.buyer_id,
+             b.name  AS buyer_name,
+             b.email AS buyer_email,
+             b.mobile AS buyer_mobile
+      FROM orders o
+      LEFT JOIN buyer b ON o.buyer_id = b.id
+      WHERE o.id IN (?)
+      ORDER BY o.id DESC
+    `,
+      [orderIds],
+    );
+
+    await attachOrderDetails(pool, orders);
+    return res.status(200).json(orders);
   } catch (err) {
     console.error("Error fetching seller orders:", err);
-    res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
-// ======================= FILTER: INQUIRY ORDERS ===========================
+// =====================================================================
+//  GET ALL INQUIRY ORDERS
+// =====================================================================
 export const getAllOrderInquiry = async (req, res) => {
   try {
     const pool = await connectDB();
 
-    const [orders] = await pool.query(`SELECT * FROM orders WHERE order_type = 'Inquiry' ORDER BY id DESC`);
-    if (orders.length === 0) return res.status(404).json({ message: "No inquiries found" });
+    const [orders] = await pool.query(`
+      SELECT o.id, o.order_type, o.created_at, o.updated_at,
+             o.buyer_id,
+             b.name  AS buyer_name,
+             b.email AS buyer_email,
+             b.mobile AS buyer_mobile
+      FROM orders o
+      LEFT JOIN buyer b ON o.buyer_id = b.id
+      WHERE o.order_type = 'Inquiry'
+      ORDER BY o.id DESC
+    `);
 
-    for (const order of orders) {
-      const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
-      order.products = products;
-    }
+    if (orders.length === 0)
+      return res.status(404).json({ message: "No inquiries found" });
 
-    res.status(200).json(orders);
+    await attachOrderDetails(pool, orders);
+    return res.status(200).json(orders);
   } catch (err) {
     console.error("Error fetching inquiries:", err);
-    res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
-// ======================= FILTER: ORder type ORDERS ===========================
+// =====================================================================
+//  GET ALL ORDERS BY ORDER TYPE
+// =====================================================================
 export const getAllOrderOrdertype = async (req, res) => {
   try {
     const pool = await connectDB();
 
-    const [orders] = await pool.query(`SELECT * FROM orders WHERE order_type = 'Order' ORDER BY id DESC`);
-    if (orders.length === 0) return res.status(404).json({ message: "No inquiries found" });
+    const [orders] = await pool.query(`
+      SELECT o.id, o.order_type, o.created_at, o.updated_at,
+             o.buyer_id,
+             b.name  AS buyer_name,
+             b.email AS buyer_email,
+             b.mobile AS buyer_mobile
+      FROM orders o
+      LEFT JOIN buyer b ON o.buyer_id = b.id
+      WHERE o.order_type = 'Order'
+      ORDER BY o.id DESC
+    `);
 
-    for (const order of orders) {
-      const [products] = await pool.query(`SELECT * FROM order_products WHERE order_id = ?`, [order.id]);
-      order.products = products;
-    }
+    if (orders.length === 0)
+      return res.status(404).json({ message: "No orders found" });
 
-    res.status(200).json(orders);
+    await attachOrderDetails(pool, orders);
+    return res.status(200).json(orders);
   } catch (err) {
-    console.error("Error fetching inquiries:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error fetching orders by type:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
+// =====================================================================
+//  DELETE ORDER
+// =====================================================================
+export const deleteOrder = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { id } = req.params;
+
+    if (!id) return res.status(400).json({ message: "Order id is required" });
+
+    const [existing] = await pool.query(`SELECT id FROM orders WHERE id = ?`, [
+      id,
+    ]);
+    if (existing.length === 0)
+      return res.status(404).json({ message: "Order not found" });
+
+    await pool.query(`DELETE FROM order_products WHERE order_id = ?`, [id]);
+    await pool.query(`DELETE FROM orders WHERE id = ?`, [id]);
+
+    return res.status(200).json({ message: "Order deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting order:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
+  }
+};

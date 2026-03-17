@@ -4,7 +4,6 @@ import multer from "multer";
 import AdmZip from "adm-zip";
 import path from "path";
 
-
 import {
   createProduct,
   updateProduct,
@@ -19,9 +18,9 @@ import {
   getAllFeaturedProducts,
   getBestBrandByCategory,
   getTotalBrandByCategory,
+  getProductInventory,
 } from "../../controllers/productController/productController.js";
 import { upload } from "../../middlewares/upload.js";
-
 
 // ✅ File upload configuration (multer)
 const productUpload = upload.fields([
@@ -49,11 +48,12 @@ const handleFileUpload = (req, res, next) => {
 
 const router = express.Router();
 
-router.post("/product",handleFileUpload, createProduct);
-router.patch("/product/:id",handleFileUpload, updateProduct);
+router.post("/product", handleFileUpload, createProduct);
+router.patch("/product/:id", handleFileUpload, updateProduct);
 router.delete("/product/:id", deleteProduct);
 router.get("/products", getAllProducts);
 router.get("/product/:id", getProductById);
+router.get("/product/:product_id/inventory", getProductInventory);
 router.get("/product_category/:id", getProductsByCategory);
 router.get("/product_subcategory/:id", getProductsBySubCategory);
 router.get("/product_brand/:brand", getProductsByBrand);
@@ -81,19 +81,19 @@ router.post(
         const zip = new AdmZip(zipPath);
 
         zip.getEntries().forEach((entry) => {
-        if (!entry.isDirectory) {
-           // Only process files, ignore folders
-             const fileName = path.basename(entry.entryName); // remove any folder path inside ZIP
-             
-             // Ensure target folder exists
-      if (!fs.existsSync(extractTo)) {
-        fs.mkdirSync(extractTo, { recursive: true });
-      }
+          if (!entry.isDirectory) {
+            // Only process files, ignore folders
+            const fileName = path.basename(entry.entryName); // remove any folder path inside ZIP
+
+            // Ensure target folder exists
+            if (!fs.existsSync(extractTo)) {
+              fs.mkdirSync(extractTo, { recursive: true });
+            }
             const destPath = path.join(extractTo, fileName);
             fs.writeFileSync(destPath, entry.getData());
-            }
+          }
         });
-}
+      }
 
       // ✅ 2️⃣ Call your existing Excel + image importer
       req.file = req.files["excel"]?.[0];
@@ -102,11 +102,7 @@ router.post(
       console.error("Upload error:", err);
       res.status(500).json({ message: err.message });
     }
-  }
+  },
 );
-
-
-
-
 
 export default router;

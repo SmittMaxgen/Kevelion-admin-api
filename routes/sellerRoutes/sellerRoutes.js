@@ -15,12 +15,12 @@ import {
   sellerLogin,
   sendLoginOtp,
   verifyOtp,
+  createVendorPackage,
+  deleteVendorPackage,
 } from "../../controllers/sellerController/sellerControlller.js";
 import { upload } from "../../middlewares/upload.js";
 
 const router = Router();
-
-
 
 // ✅ File upload configuration (Multer)
 const sellerUpload = upload.fields([
@@ -95,6 +95,10 @@ router.post("/seller/login/verify-otp", verifyOtp);
 // seller package history 
 router.get("/seller/package-history/:seller_id", getVendorPackages);
 
+// create seller package history
+router.post("/seller/package-history/:seller_id", createVendorPackage);
+
+router.delete("/seller/package-history/:id", deleteVendorPackage);
 
 // ==================================================
 export default router;

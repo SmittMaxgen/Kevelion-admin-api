@@ -202,6 +202,125 @@ export const uploadProductsExcelLocalImages = async (req, res) => {
 // =======================================================
 // ✅ CREATE PRODUCT
 // =======================================================
+// export const createProduct = async (req, res) => {
+//   let conn;
+//   try {
+//     const pool = await connectDB();
+//     conn = await pool.getConnection();
+//     await conn.beginTransaction();
+
+//     const {
+//       name,
+//       sku,
+//       status = "Inactive",
+//       detail = "",
+//       product_MRP,
+//       pricing_tiers = [],
+//       moq = 1,
+//       cat_id,
+//       cat_sub_id,
+//       brand = "",
+//       material = "",
+//       made_in = "",
+//       specification = "",
+//       warranty = "",
+//       seller_id,
+//     } = req.body;
+
+//     if (!name || !cat_id || !cat_sub_id || !seller_id) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Missing required fields: name, cat_id, cat_sub_id, seller_id",
+//       });
+//     }
+
+//     // Handle file uploads
+//     const f_image = req.files?.f_image?.[0]?.filename || "";
+//     const image_2 = req.files?.image_2?.[0]?.filename || "";
+//     const image_3 = req.files?.image_3?.[0]?.filename || "";
+//     const image_4 = req.files?.image_4?.[0]?.filename || "";
+
+//     const [rows] = await pool.query(
+//       `
+//   SELECT
+//       sph.*,
+//       sp.max_product_add,
+//       COUNT(p.id) AS total_product,
+//       (sp.max_product_add - COUNT(p.id)) AS remaining_slots
+//   FROM seller_packages_history sph
+//   JOIN subscription_package sp ON sph.package_id = sp.id
+//   LEFT JOIN product p ON p.seller_id = sph.seller_id
+//   WHERE sph.status = 'active' AND sph.seller_id = ?
+//   GROUP BY sph.id, sp.max_product_add;
+// `,
+//       [seller_id],
+//     );
+
+//     const limitInfo = rows[0];
+//     if (!limitInfo) {
+//       await conn.rollback();
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "No active package found" });
+//     }
+
+//     const remaining = limitInfo.remaining_slots ?? 0;
+
+//     // 2️⃣ Check if seller exceeds limit
+//     if (remaining == 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Upload limit exceeded.`,
+//       });
+//     }
+
+//     const query = `
+//       INSERT INTO product (
+//         name, sku, status, detail, product_MRP, pricing_tiers, moq,
+//         cat_id, cat_sub_id, f_image, image_2, image_3, image_4,
+//         brand, material, made_in, specification, warranty, seller_id
+//       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+//     `;
+
+//     const [result] = await conn.query(query, [
+//       name,
+//       sku,
+//       status,
+//       detail,
+//       product_MRP,
+//       JSON.stringify(pricing_tiers), // store pricing JSON
+//       moq,
+//       cat_id,
+//       cat_sub_id,
+//       f_image,
+//       image_2,
+//       image_3,
+//       image_4,
+//       brand,
+//       material,
+//       made_in,
+//       specification,
+//       warranty,
+//       seller_id,
+//     ]);
+
+//     await conn.commit();
+//     return res.status(201).json({
+//       success: true,
+//       message: "Product created successfully",
+//       product_id: result.insertId,
+//     });
+//   } catch (err) {
+//     if (conn) await conn.rollback();
+//     console.error("Error creating product:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   } finally {
+//     if (conn) conn.release();
+//   }
+// };
+
 export const createProduct = async (req, res) => {
   let conn;
   try {
@@ -217,6 +336,7 @@ export const createProduct = async (req, res) => {
       product_MRP,
       pricing_tiers = [],
       moq = 1,
+      quantity = 0,
       cat_id,
       cat_sub_id,
       brand = "",
@@ -234,25 +354,20 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    // Handle file uploads
     const f_image = req.files?.f_image?.[0]?.filename || "";
     const image_2 = req.files?.image_2?.[0]?.filename || "";
     const image_3 = req.files?.image_3?.[0]?.filename || "";
     const image_4 = req.files?.image_4?.[0]?.filename || "";
 
     const [rows] = await pool.query(
-      `
-  SELECT 
-      sph.*, 
-      sp.max_product_add, 
-      COUNT(p.id) AS total_product,
-      (sp.max_product_add - COUNT(p.id)) AS remaining_slots
-  FROM seller_packages_history sph
-  JOIN subscription_package sp ON sph.package_id = sp.id
-  LEFT JOIN product p ON p.seller_id = sph.seller_id
-  WHERE sph.status = 'active' AND sph.seller_id = ?
-  GROUP BY sph.id, sp.max_product_add;
-`,
+      `SELECT sph.*, sp.max_product_add,
+              COUNT(p.id) AS total_product,
+              (sp.max_product_add - COUNT(p.id)) AS remaining_slots
+       FROM seller_packages_history sph
+       JOIN subscription_package sp ON sph.package_id = sp.id
+       LEFT JOIN product p ON p.seller_id = sph.seller_id
+       WHERE sph.status = 'active' AND sph.seller_id = ?
+       GROUP BY sph.id, sp.max_product_add`,
       [seller_id],
     );
 
@@ -263,52 +378,61 @@ export const createProduct = async (req, res) => {
         .status(400)
         .json({ success: false, message: "No active package found" });
     }
-
-    const remaining = limitInfo.remaining_slots ?? 0;
-
-    // 2️⃣ Check if seller exceeds limit
-    if (remaining == 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Upload limit exceeded.`,
-      });
+    if ((limitInfo.remaining_slots ?? 0) == 0) {
+      await conn.rollback();
+      return res
+        .status(400)
+        .json({ success: false, message: "Upload limit exceeded." });
     }
 
-    const query = `
-      INSERT INTO product (
-        name, sku, status, detail, product_MRP, pricing_tiers, moq,
-        cat_id, cat_sub_id, f_image, image_2, image_3, image_4,
-        brand, material, made_in, specification, warranty, seller_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+    const [result] = await conn.query(
+      `INSERT INTO product
+         (name, sku, status, detail, product_MRP, pricing_tiers, moq, quantity,
+          cat_id, cat_sub_id, f_image, image_2, image_3, image_4,
+          brand, material, made_in, specification, warranty, seller_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        name,
+        sku,
+        status,
+        detail,
+        product_MRP,
+        JSON.stringify(pricing_tiers),
+        moq,
+        Number(quantity),
+        cat_id,
+        cat_sub_id,
+        f_image,
+        image_2,
+        image_3,
+        image_4,
+        brand,
+        material,
+        made_in,
+        specification,
+        warranty,
+        seller_id,
+      ],
+    );
 
-    const [result] = await conn.query(query, [
-      name,
-      sku,
-      status,
-      detail,
-      product_MRP,
-      JSON.stringify(pricing_tiers), // store pricing JSON
-      moq,
-      cat_id,
-      cat_sub_id,
-      f_image,
-      image_2,
-      image_3,
-      image_4,
-      brand,
-      material,
-      made_in,
-      specification,
-      warranty,
-      seller_id,
-    ]);
+    const product_id = result.insertId;
+    const qty = Number(quantity);
+
+    if (qty > 0) {
+      await conn.query(
+        `INSERT INTO product_inventory
+           (product_id, seller_id, change_type, quantity_change,
+            quantity_before, quantity_after, order_type, note)
+         VALUES (?, ?, 'add', ?, 0, ?, 'manual', 'Initial stock on product creation')`,
+        [product_id, seller_id, qty, qty],
+      );
+    }
 
     await conn.commit();
     return res.status(201).json({
       success: true,
       message: "Product created successfully",
-      product_id: result.insertId,
+      product_id,
     });
   } catch (err) {
     if (conn) await conn.rollback();
@@ -324,59 +448,182 @@ export const createProduct = async (req, res) => {
 // =======================================================
 // ✅ UPDATE PRODUCT
 // =======================================================
+// export const updateProduct = async (req, res) => {
+//   let conn;
+//   try {
+//     const { id } = req.params;
+//     const updates = { ...req.body };
+
+//     if (!id)
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "Product ID required" });
+
+//     // Handle file uploads
+//     if (req.files?.f_image) updates.f_image = req.files.f_image[0].filename;
+//     if (req.files?.image_2) updates.image_2 = req.files.image_2[0].filename;
+//     if (req.files?.image_3) updates.image_3 = req.files.image_3[0].filename;
+//     if (req.files?.image_4) updates.image_4 = req.files.image_4[0].filename;
+//     if (req.files?.product_catalogue)
+//       updates.product_catalogue = req.files.product_catalogue[0].filename;
+//     if (req.files?.product_catelogs)
+//       updates.product_catelogs = req.files.product_catelogs[0].filename;
+//     // Convert pricing_tiers to JSON string
+//     if (updates.pricing_tiers)
+//       updates.pricing_tiers = JSON.stringify(updates.pricing_tiers);
+
+//     const pool = await connectDB();
+//     conn = await pool.getConnection();
+//     await conn.beginTransaction();
+
+//     const fields = Object.keys(updates)
+//       .map((key) => `${key} = ?`)
+//       .join(", ");
+//     const values = Object.values(updates);
+//     values.push(id);
+
+//     const query = `UPDATE product SET ${fields} WHERE id = ?`;
+//     const [result] = await conn.query(query, values);
+
+//     if (result.affectedRows === 0) {
+//       await conn.rollback();
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Product not found" });
+//     }
+
+//     await conn.commit();
+//     return res
+//       .status(200)
+//       .json({ success: true, message: "Product updated successfully" });
+//   } catch (err) {
+//     if (conn) await conn.rollback();
+//     console.error("Error updating product:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   } finally {
+//     if (conn) conn.release();
+//   }
+// };
+
 export const updateProduct = async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
+    if (!id) return res.status(400).json({ success: false, message: "Product ID required" });
+
     const updates = { ...req.body };
 
-    if (!id)
-      return res
-        .status(400)
-        .json({ success: false, message: "Product ID required" });
+    if (req.files?.f_image)           updates.f_image           = req.files.f_image[0].filename;
+    if (req.files?.image_2)           updates.image_2           = req.files.image_2[0].filename;
+    if (req.files?.image_3)           updates.image_3           = req.files.image_3[0].filename;
+    if (req.files?.image_4)           updates.image_4           = req.files.image_4[0].filename;
+    if (req.files?.product_catalogue) updates.product_catalogue = req.files.product_catalogue[0].filename;
+    if (req.files?.product_catelogs)  updates.product_catelogs  = req.files.product_catelogs[0].filename;
 
-    // Handle file uploads
-    if (req.files?.f_image) updates.f_image = req.files.f_image[0].filename;
-    if (req.files?.image_2) updates.image_2 = req.files.image_2[0].filename;
-    if (req.files?.image_3) updates.image_3 = req.files.image_3[0].filename;
-    if (req.files?.image_4) updates.image_4 = req.files.image_4[0].filename;
+    if (updates.pricing_tiers) updates.pricing_tiers = JSON.stringify(updates.pricing_tiers);
 
-    // Convert pricing_tiers to JSON string
-    if (updates.pricing_tiers)
-      updates.pricing_tiers = JSON.stringify(updates.pricing_tiers);
+    const newQuantity = updates.quantity !== undefined ? Number(updates.quantity) : undefined;
+    delete updates.quantity;
 
     const pool = await connectDB();
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const fields = Object.keys(updates)
-      .map((key) => `${key} = ?`)
-      .join(", ");
-    const values = Object.values(updates);
-    values.push(id);
+    const [[currentProduct]] = await conn.query(
+      `SELECT quantity, seller_id FROM product WHERE id = ?`,
+      [id]
+    );
+    if (!currentProduct) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
 
-    const query = `UPDATE product SET ${fields} WHERE id = ?`;
-    const [result] = await conn.query(query, values);
+    const fieldsToUpdate = { ...updates };
+    if (newQuantity !== undefined) fieldsToUpdate.quantity = newQuantity;
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "No fields to update" });
+    }
+
+    const fields = Object.keys(fieldsToUpdate).map((k) => `${k} = ?`).join(", ");
+    const values = [...Object.values(fieldsToUpdate), id];
+
+    const [result] = await conn.query(`UPDATE product SET ${fields} WHERE id = ?`, values);
 
     if (result.affectedRows === 0) {
       await conn.rollback();
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+
+    if (newQuantity !== undefined) {
+      const quantityBefore = Number(currentProduct.quantity);
+      const quantityAfter  = newQuantity;
+      const diff           = quantityAfter - quantityBefore;
+
+      if (diff !== 0) {
+        const changeType     = diff > 0 ? "add" : "deduct";
+        const quantityChange = Math.abs(diff);
+
+        await conn.query(
+          `INSERT INTO product_inventory
+             (product_id, seller_id, change_type, quantity_change,
+              quantity_before, quantity_after, order_type, note)
+           VALUES (?, ?, ?, ?, ?, ?, 'manual', 'Manual quantity update')`,
+          [id, currentProduct.seller_id, changeType, quantityChange, quantityBefore, quantityAfter]
+        );
+      }
     }
 
     await conn.commit();
-    return res
-      .status(200)
-      .json({ success: true, message: "Product updated successfully" });
+    return res.status(200).json({ success: true, message: "Product updated successfully" });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error updating product:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: err.message });
+    return res.status(500).json({ success: false, message: "Server error", error: err.message });
   } finally {
     if (conn) conn.release();
+  }
+};
+
+export const getProductInventory = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { product_id } = req.params;
+
+    if (!product_id)
+      return res.status(400).json({ success: false, message: "product_id is required" });
+
+    const [[product]] = await pool.query(
+      `SELECT id, name, sku, quantity, seller_id FROM product WHERE id = ?`,
+      [product_id]
+    );
+    if (!product)
+      return res.status(404).json({ success: false, message: "Product not found" });
+
+    const [history] = await pool.query(
+      `SELECT * FROM product_inventory
+       WHERE product_id = ?
+       ORDER BY created_at DESC`,
+      [product_id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      product: {
+        id:               product.id,
+        name:             product.name,
+        sku:              product.sku,
+        seller_id:        product.seller_id,
+        current_quantity: product.quantity,
+      },
+      inventory_history: history,
+    });
+  } catch (err) {
+    console.error("Error fetching product inventory:", err);
+    return res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
 

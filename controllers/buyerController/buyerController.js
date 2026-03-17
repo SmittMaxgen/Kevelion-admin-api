@@ -16,7 +16,7 @@ export const createBuyer = async (req, res) => {
     } else {
       bodyData = req.body;
     }*/
-    
+
     let bodyData = req.body;
 
     // Body fields (no nested objects)
@@ -51,10 +51,9 @@ export const createBuyer = async (req, res) => {
       aadhar_front,
       aadhar_back,
       driving_license_front,
-      driving_license_back
+      driving_license_back,
     } = bodyData;
-    
-    
+
     // Step 2: Destructure fields
     /*const {
       buyer = {},
@@ -70,44 +69,44 @@ export const createBuyer = async (req, res) => {
       "SELECT id FROM buyer WHERE email = ? OR mobile = ?",
       [email, mobile]
     ) ;  */
-   
+
     let whereClauses = [];
     let values = [];
-    
+
     if (email) {
       whereClauses.push("email = ?");
       values.push(email);
     }
-    
+
     if (mobile) {
       whereClauses.push("mobile = ?");
       values.push(mobile);
     }
-    
+
     if (whereClauses.length === 0) {
       return res.status(400).json({ message: "Email or Mobile is required" });
     }
-    
+
     const duplicateQuery = `
       SELECT id, email, mobile 
       FROM buyer 
       WHERE ${whereClauses.join(" OR ")}
     `;
-    
+
     const [existingBuyer] = await pool.query(duplicateQuery, values);
-    
+
     if (existingBuyer.length > 0) {
-      return res.status(400).json({ message: "Email or Mobile already exists" });
+      return res
+        .status(400)
+        .json({ message: "Email or Mobile already exists" });
     }
-     
-    
+
     // Step 4: Hash password
-    
-    
+
     let hashedPassword = "";
-    
-    if(password){
-         hashedPassword = await bcrypt.hash(password, 10);
+
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
     }
     // Step 5: Insert main buyer record
     const [result] = await pool.query(
@@ -125,7 +124,7 @@ export const createBuyer = async (req, res) => {
         address_id,
         is_online ?? false,
         device_token || "",
-      ]
+      ],
     );
 
     const buyerId = result.insertId;
@@ -149,7 +148,7 @@ export const createBuyer = async (req, res) => {
         city || "",
         state || "",
         pincode || "",
-      ]
+      ],
     );
 
     // Step 7: Insert KYC details
@@ -166,10 +165,12 @@ export const createBuyer = async (req, res) => {
         getFilePath(req, "aadhar_back"),
         getFilePath(req, "driving_license_front"),
         getFilePath(req, "driving_license_back"),
-      ]
+      ],
     );
 
-    res.status(201).json({ message: "Buyer created successfully", buyer_id: buyerId });
+    res
+      .status(201)
+      .json({ message: "Buyer created successfully", buyer_id: buyerId });
   } catch (err) {
     console.error("Error creating buyer:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -186,7 +187,7 @@ export const getAllBuyers = async (req, res) => {
        FROM buyer b 
        LEFT JOIN buyer_company_details c ON b.id = c.buyer_id 
        LEFT JOIN buyer_kyc_details bk on b.id = bk.buyer_id
-       ORDER BY b.id DESC`
+       ORDER BY b.id DESC`,
     );
     res.status(200).json(rows);
   } catch (err) {
@@ -205,7 +206,7 @@ export const getAllPendingBuyers = async (req, res) => {
        FROM buyer b 
        LEFT JOIN buyer_company_details c ON b.id = c.buyer_id
        WHERE b.approve_status = 'Pending'
-       ORDER BY b.id DESC`
+       ORDER BY b.id DESC`,
     );
     res.status(200).json(rows);
   } catch (err) {
@@ -214,19 +215,19 @@ export const getAllPendingBuyers = async (req, res) => {
   }
 };
 
-
-
 // ======================= GET BUYER BY ID =====================================
 export const getBuyerById = async (req, res) => {
   try {
     const pool = await connectDB();
     const { id } = req.params;
 
-    const [buyer] = await pool.query(`SELECT 
+    const [buyer] = await pool.query(
+      `SELECT 
           b.id AS buyer_id,
           b.name,
           b.email,
           b.mobile,
+          b.address,
           b.image,
           b.status,
           b.approve_status,
@@ -260,12 +261,14 @@ export const getBuyerById = async (req, res) => {
       FROM buyer b
       LEFT JOIN buyer_company_details c ON b.id = c.buyer_id
       LEFT JOIN buyer_kyc_details k ON b.id = k.buyer_id
-      WHERE b.id = ?`, [id]);
-    if (buyer.length === 0) return res.status(404).json({ message: "Buyer not found" });
-    
-     const row = buyer[0]; // single record after JOIN
-    
-    
+      WHERE b.id = ?`,
+      [id],
+    );
+    if (buyer.length === 0)
+      return res.status(404).json({ message: "Buyer not found" });
+
+    const row = buyer[0]; // single record after JOIN
+
     const response = {
       status: true,
       data: {
@@ -297,26 +300,23 @@ export const getBuyerById = async (req, res) => {
               city: row.city,
               state: row.state,
               pincode: row.pincode,
-          }
+            }
           : null,
         // ---- KYC NESTED INSIDE COMPANY ----
         kyc: row.kyc_id
-                ? {
-                    kyc_id: row.kyc_id,
-                    aadhar_number: row.aadhar_number,
-                    aadhar_front: row.aadhar_front,
-                    aadhar_back: row.aadhar_back,
-                    driving_license_number: row.driving_license_number,
-                    driving_license_front: row.driving_license_front,
-                    driving_license_back: row.driving_license_back,
-                    driving_license_dob: row.driving_license_dob,
-                  }
-                : null,
-           
+          ? {
+              kyc_id: row.kyc_id,
+              aadhar_number: row.aadhar_number,
+              aadhar_front: row.aadhar_front,
+              aadhar_back: row.aadhar_back,
+              driving_license_number: row.driving_license_number,
+              driving_license_front: row.driving_license_front,
+              driving_license_back: row.driving_license_back,
+              driving_license_dob: row.driving_license_dob,
+            }
+          : null,
       },
     };
-    
-    
 
     //const [company] = await pool.query(`SELECT * FROM buyer_company_details WHERE buyer_id = ?`, [id]);
     //const [kyc] = await pool.query(`SELECT * FROM buyer_kyc_details WHERE buyer_id = ?`, [id]);
@@ -327,7 +327,6 @@ export const getBuyerById = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 //===========================GET BUYEr by mobile number ========================
 
@@ -336,7 +335,8 @@ export const getBuyerByMobile = async (req, res) => {
     const pool = await connectDB();
     const { mobile } = req.params;
 
-    const [buyer] = await pool.query(`SELECT 
+    const [buyer] = await pool.query(
+      `SELECT 
           b.id AS buyer_id,
           b.name,
           b.email,
@@ -374,12 +374,14 @@ export const getBuyerByMobile = async (req, res) => {
       FROM buyer b
       LEFT JOIN buyer_company_details c ON b.id = c.buyer_id
       LEFT JOIN buyer_kyc_details k ON b.id = k.buyer_id
-      WHERE b.mobile = ?`, [mobile]);
-    if (buyer.length === 0) return res.status(404).json({ message: "Buyer not found" });
-    
-     const row = buyer[0]; // single record after JOIN
-    
-    
+      WHERE b.mobile = ?`,
+      [mobile],
+    );
+    if (buyer.length === 0)
+      return res.status(404).json({ message: "Buyer not found" });
+
+    const row = buyer[0]; // single record after JOIN
+
     const response = {
       status: true,
       data: {
@@ -411,26 +413,23 @@ export const getBuyerByMobile = async (req, res) => {
               city: row.city,
               state: row.state,
               pincode: row.pincode,
-          }
+            }
           : null,
         // ---- KYC NESTED INSIDE COMPANY ----
         kyc: row.kyc_id
-                ? {
-                    kyc_id: row.kyc_id,
-                    aadhar_number: row.aadhar_number,
-                    aadhar_front: row.aadhar_front,
-                    aadhar_back: row.aadhar_back,
-                    driving_license_number: row.driving_license_number,
-                    driving_license_front: row.driving_license_front,
-                    driving_license_back: row.driving_license_back,
-                    driving_license_dob: row.driving_license_dob,
-                  }
-                : null,
-           
+          ? {
+              kyc_id: row.kyc_id,
+              aadhar_number: row.aadhar_number,
+              aadhar_front: row.aadhar_front,
+              aadhar_back: row.aadhar_back,
+              driving_license_number: row.driving_license_number,
+              driving_license_front: row.driving_license_front,
+              driving_license_back: row.driving_license_back,
+              driving_license_dob: row.driving_license_dob,
+            }
+          : null,
       },
     };
-    
-    
 
     //const [company] = await pool.query(`SELECT * FROM buyer_company_details WHERE buyer_id = ?`, [id]);
     //const [kyc] = await pool.query(`SELECT * FROM buyer_kyc_details WHERE buyer_id = ?`, [id]);
@@ -442,15 +441,14 @@ export const getBuyerByMobile = async (req, res) => {
   }
 };
 
-
-
 // ======================= GET ALL Company =====================================
 
 export const getAllCompany = async (req, res) => {
   try {
     const pool = await connectDB();
     const [rows] = await pool.query(
-      `SELECT * FROM buyer_company_details ORDER BY id DESC`);
+      `SELECT * FROM buyer_company_details ORDER BY id DESC`,
+    );
     res.status(200).json(rows);
   } catch (err) {
     console.error("Error fetching buyers:", err);
@@ -464,9 +462,11 @@ export const getAllCompanyByBuyer = async (req, res) => {
   try {
     const pool = await connectDB();
     const { buyer_id } = req.params;
-    
+
     const [rows] = await pool.query(
-      `SELECT * FROM buyer_company_details WHERE buyer_id = ? ORDER BY id DESC`,[buyer_id]);
+      `SELECT * FROM buyer_company_details WHERE buyer_id = ? ORDER BY id DESC`,
+      [buyer_id],
+    );
     res.status(200).json(rows);
   } catch (err) {
     console.error("Error fetching company:", err);
@@ -479,17 +479,17 @@ export const getAllCompanyById = async (req, res) => {
   try {
     const pool = await connectDB();
     const { id } = req.params;
-    
+
     const [rows] = await pool.query(
-      `SELECT * FROM buyer_company_details WHERE id = ? ORDER BY id DESC`,[id]);
+      `SELECT * FROM buyer_company_details WHERE id = ? ORDER BY id DESC`,
+      [id],
+    );
     res.status(200).json(rows);
   } catch (err) {
     console.error("Error fetching company:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
-
-
 
 // ======================= update BUYER  =====================================
 
@@ -505,7 +505,7 @@ export const updateBuyer = async (req, res) => {
     } else if (req.body.data) {
       bodyData = JSON.parse(req.body.data);
     }
-    
+
     const {
       name,
       mobile,
@@ -516,7 +516,7 @@ export const updateBuyer = async (req, res) => {
       is_online,
       device_token,
       address_id,
-    
+
       company_name,
       company_GST_number,
       company_website,
@@ -528,38 +528,61 @@ export const updateBuyer = async (req, res) => {
       city,
       state,
       pincode,
-    
+
       aadhar_number,
       driving_license_number,
-      driving_license_dob
+      driving_license_dob,
     } = bodyData;
 
     // Fetch existing buyer
-    const [existingBuyer] = await pool.query("SELECT * FROM buyer WHERE id = ?", [id]);
+    const [existingBuyer] = await pool.query(
+      "SELECT * FROM buyer WHERE id = ?",
+      [id],
+    );
     if (existingBuyer.length === 0)
       return res.status(404).json({ message: "Buyer not found" });
 
     const currentBuyer = existingBuyer[0];
 
     // Update main buyer table
+    // await pool.query(
+    //   `UPDATE buyer SET name=?, mobile=?, email=?, image=?, status=?,address_id=?, approve_status=?, is_online=?, device_token=? WHERE id=?`,
+    //   [
+    //     name || currentBuyer.name,
+    //     mobile || currentBuyer.mobile,
+    //     email || currentBuyer.email,
+    //     getFilePath(req, "image") || currentBuyer.image,
+    //     status || currentBuyer.status,
+    //     address_id || currentBuyer.address_id,
+    //     approve_status || currentBuyer.approve_status,
+    //     is_online ?? currentBuyer.is_online,
+    //     device_token || currentBuyer.device_token,
+    //     id,
+    //   ]
+    // );
+
     await pool.query(
-      `UPDATE buyer SET name=?, mobile=?, email=?, image=?, status=?,address_id=?, approve_status=?, is_online=?, device_token=? WHERE id=?`,
+      `UPDATE buyer SET name=?, mobile=?, email=?, image=?, address=?, status=?, address_id=?, approve_status=?, is_online=?, device_token=? WHERE id=?`,
       [
         name || currentBuyer.name,
         mobile || currentBuyer.mobile,
         email || currentBuyer.email,
         getFilePath(req, "image") || currentBuyer.image,
+        address || currentBuyer.address,
         status || currentBuyer.status,
         address_id || currentBuyer.address_id,
         approve_status || currentBuyer.approve_status,
         is_online ?? currentBuyer.is_online,
         device_token || currentBuyer.device_token,
         id,
-      ]
+      ],
     );
 
     // Update company details
-    const [companyRows] = await pool.query("SELECT * FROM buyer_company_details WHERE buyer_id=?", [id]);
+    const [companyRows] = await pool.query(
+      "SELECT * FROM buyer_company_details WHERE buyer_id=?",
+      [id],
+    );
     await pool.query(
       `UPDATE buyer_company_details SET company_name=?, company_GST_number=?, company_website=?, IEC_code=?, annual_turnover=?, facebook_link=?, linkedin_link=?, insta_link=?, city=?, state=?, pincode=? WHERE buyer_id=?`,
       [
@@ -575,11 +598,14 @@ export const updateBuyer = async (req, res) => {
         state || companyRows[0].state,
         pincode || companyRows[0].pincode,
         id,
-      ]
+      ],
     );
 
     // Update KYC details
-    const [kycRows] = await pool.query("SELECT * FROM buyer_kyc_details WHERE buyer_id=?", [id]);
+    const [kycRows] = await pool.query(
+      "SELECT * FROM buyer_kyc_details WHERE buyer_id=?",
+      [id],
+    );
     await pool.query(
       `UPDATE buyer_kyc_details SET aadhar_number=?, driving_license_number=?, driving_license_dob=?, aadhar_front=?, aadhar_back=?, driving_license_front=?, driving_license_back=? WHERE buyer_id=?`,
       [
@@ -588,10 +614,12 @@ export const updateBuyer = async (req, res) => {
         driving_license_dob || kycRows[0].driving_license_dob,
         getFilePath(req, "aadhar_front") || kycRows[0].aadhar_front,
         getFilePath(req, "aadhar_back") || kycRows[0].aadhar_back,
-        getFilePath(req, "driving_license_front") || kycRows[0].driving_license_front,
-        getFilePath(req, "driving_license_back") || kycRows[0].driving_license_back,
+        getFilePath(req, "driving_license_front") ||
+          kycRows[0].driving_license_front,
+        getFilePath(req, "driving_license_back") ||
+          kycRows[0].driving_license_back,
         id,
-      ]
+      ],
     );
 
     res.status(200).json({ message: "Buyer updated successfully" });
@@ -600,7 +628,6 @@ export const updateBuyer = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
 
 // ======================= UPDATE BUYER ===========================
 /*export const updateBuyer = async (req, res) => {
@@ -688,7 +715,9 @@ export const deleteBuyer = async (req, res) => {
       return res.status(404).json({ message: "Buyer not found" });
 
     await pool.query(`DELETE FROM buyer_kyc_details WHERE buyer_id = ?`, [id]);
-    await pool.query(`DELETE FROM buyer_company_details WHERE buyer_id = ?`, [id]);
+    await pool.query(`DELETE FROM buyer_company_details WHERE buyer_id = ?`, [
+      id,
+    ]);
     await pool.query(`DELETE FROM buyer WHERE id = ?`, [id]);
 
     res.status(200).json({ message: "Buyer deleted successfully" });
