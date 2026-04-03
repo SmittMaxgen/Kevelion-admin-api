@@ -20,6 +20,8 @@ import {
   getTotalBrandByCategory,
   getProductInventory,
   getAllInventory,
+  getProductBySellerId,
+  getSellerReport,
 } from "../../controllers/productController/productController.js";
 import { upload } from "../../middlewares/upload.js";
 
@@ -54,6 +56,9 @@ router.patch("/product/:id", handleFileUpload, updateProduct);
 router.delete("/product/:id", deleteProduct);
 router.get("/products", getAllProducts);
 router.get("/product/:id", getProductById);
+// router.get("/product/:seller_id", getProductBySellerId);
+router.get("/product/seller_id/:seller_id", getProductBySellerId);
+router.get("/report/seller", getSellerReport);
 router.get("/product-inventory",getAllInventory);
 router.get("/product/:product_id/inventory", getProductInventory);
 router.get("/product_category/:id", getProductsByCategory);

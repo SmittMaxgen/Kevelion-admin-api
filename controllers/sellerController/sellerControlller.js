@@ -5,6 +5,17 @@ import jwt from "jsonwebtoken";
 
 //const JWT_SECRET = "your_secret_key"; // ✅ define JWT secret key
 
+import Razorpay from "razorpay";
+import crypto from "crypto";
+
+const RAZORPAY_KEY_ID = "rzp_test_SOEyd37AsrERPN";
+const RAZORPAY_KEY_SECRET = "7m80crPTmM70cVUVMGJZolAJ";
+
+const razorpay = new Razorpay({
+  key_id: RAZORPAY_KEY_ID,
+  key_secret: RAZORPAY_KEY_SECRET,
+});
+
 // ======================= CREATE SELLER + FREE TRIAL===========================
 // ======================= CREATE SELLER + FREE TRIAL===========================
 export const createSeller = async (req, res) => {
@@ -686,13 +697,71 @@ ORDER BY
 
 // ======================= CREATE VENDOR PACKAGE HISTORY ===========================
 
+// export const createVendorPackage = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { seller_id } = req.params;
+//     const { package_id, package_start_date, package_end_date } = req.body;
+
+//     // Validate required fields
+//     if (!package_id || !package_start_date || !package_end_date) {
+//       return res.status(400).json({
+//         message:
+//           "package_id, package_start_date, and package_end_date are required.",
+//       });
+//     }
+
+//     // Check if the package exists
+//     const [packageExists] = await pool.query(
+//       `SELECT id FROM subscription_package WHERE id = ?`,
+//       [package_id],
+//     );
+
+//     if (packageExists.length === 0) {
+//       return res
+//         .status(404)
+//         .json({ message: "Subscription package not found." });
+//     }
+
+//     // Check for overlapping active packages for this seller
+//     const [overlap] = await pool.query(
+//       `SELECT id FROM seller_packages_history
+//        WHERE seller_id = ?
+//          AND package_start_date < ?
+//          AND package_end_date > ?`,
+//       [seller_id, package_end_date, package_start_date],
+//     );
+
+//     if (overlap.length > 0) {
+//       return res.status(409).json({
+//         message:
+//           "Seller already has an active package overlapping this date range.",
+//       });
+//     }
+
+//     // Insert the new subscription
+//     const [result] = await pool.query(
+//       `INSERT INTO seller_packages_history (seller_id, package_id, package_start_date, package_end_date)
+//        VALUES (?, ?, ?, ?)`,
+//       [seller_id, package_id, package_start_date, package_end_date],
+//     );
+
+//     res.status(201).json({
+//       message: "Subscription created successfully.",
+//       package_history_id: result.insertId,
+//     });
+//   } catch (err) {
+//     console.error("Error creating vendor package:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
 export const createVendorPackage = async (req, res) => {
   try {
     const pool = await connectDB();
     const { seller_id } = req.params;
     const { package_id, package_start_date, package_end_date } = req.body;
 
-    // Validate required fields
     if (!package_id || !package_start_date || !package_end_date) {
       return res.status(400).json({
         message:
@@ -700,19 +769,21 @@ export const createVendorPackage = async (req, res) => {
       });
     }
 
-    // Check if the package exists
-    const [packageExists] = await pool.query(
-      `SELECT id FROM subscription_package WHERE id = ?`,
+    // Fetch package — update 'price' if your column name is different
+    const [packages] = await pool.query(
+      `SELECT id, package_name, package_price FROM subscription_package WHERE id = ?`,
       [package_id],
     );
 
-    if (packageExists.length === 0) {
+    if (packages.length === 0) {
       return res
         .status(404)
         .json({ message: "Subscription package not found." });
     }
 
-    // Check for overlapping active packages for this seller
+    const pkg = packages[0];
+
+    // Check overlapping
     const [overlap] = await pool.query(
       `SELECT id FROM seller_packages_history
        WHERE seller_id = ?
@@ -728,20 +799,120 @@ export const createVendorPackage = async (req, res) => {
       });
     }
 
-    // Insert the new subscription
-    const [result] = await pool.query(
-      `INSERT INTO seller_packages_history (seller_id, package_id, package_start_date, package_end_date)
-       VALUES (?, ?, ?, ?)`,
-      [seller_id, package_id, package_start_date, package_end_date],
-    );
+    // Create Razorpay order
+    const order = await razorpay.orders.create({
+      amount: Math.round(parseFloat(pkg.package_price) * 100),
+      currency: "INR",
+      receipt: `SUB-${Date.now()}`,
+      notes: {
+        seller_id: String(seller_id),
+        package_id: String(package_id),
+        package_name: String(pkg.package_name || ""),
+        package_start_date: String(package_start_date),
+        package_end_date: String(package_end_date),
+      },
+    });
 
-    res.status(201).json({
-      message: "Subscription created successfully.",
-      package_history_id: result.insertId,
+    res.status(200).json({
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key_id: RAZORPAY_KEY_ID,
+      notes: order.notes,
     });
   } catch (err) {
     console.error("Error creating vendor package:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const verifyVendorPackagePayment = async (req, res) => {
+  try {
+    const { seller_id } = req.params;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({
+        message:
+          "razorpay_order_id, razorpay_payment_id, and razorpay_signature are required.",
+      });
+    }
+
+    // Verify signature
+    const expectedSignature = crypto
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ message: "Invalid payment signature" });
+    }
+
+    // Fetch from Razorpay
+    const payment = await razorpay.payments.fetch(razorpay_payment_id);
+    const order = await razorpay.orders.fetch(razorpay_order_id);
+
+    const { package_id, package_name, package_start_date, package_end_date } =
+      order.notes;
+
+    const pool = await connectDB();
+
+    // Save to payment_transactions
+    await pool.query(
+      `INSERT INTO payment_transactions
+        (order_id, payment_id, signature, amount, currency, status, method, email, contact, name, seller_id, buyer_id, product_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        payment.amount / 100,
+        payment.currency,
+        payment.status,
+        payment.method,
+        payment.email || null,
+        payment.contact || null,
+        package_name || null,
+        seller_id,
+        null,
+        package_id || null,
+      ],
+    );
+
+    // Activate subscription
+    const [result] = await pool.query(
+      `INSERT INTO seller_packages_history
+        (seller_id, package_id, package_start_date, package_end_date, payment_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        seller_id,
+        package_id,
+        package_start_date,
+        package_end_date,
+        razorpay_payment_id,
+      ],
+    );
+
+    res.status(200).json({
+      status: "Payment Successful",
+      message: "Subscription activated successfully.",
+      package_history_id: result.insertId,
+      order_id: razorpay_order_id,
+      payment_id: razorpay_payment_id,
+      amount: payment.amount / 100,
+      currency: payment.currency || null,
+      method: payment.method || null,
+      seller_id,
+      package_id,
+      package_start_date,
+      package_end_date,
+    });
+  } catch (error) {
+    console.error("Error verifying vendor package payment:", error);
+    res
+      .status(500)
+      .json({ message: "Verification failed", error: error.message });
   }
 };
 

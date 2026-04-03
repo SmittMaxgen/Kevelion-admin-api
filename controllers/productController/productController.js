@@ -511,20 +511,27 @@ export const updateProduct = async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
-    if (!id) return res.status(400).json({ success: false, message: "Product ID required" });
+    if (!id)
+      return res
+        .status(400)
+        .json({ success: false, message: "Product ID required" });
 
     const updates = { ...req.body };
 
-    if (req.files?.f_image)           updates.f_image           = req.files.f_image[0].filename;
-    if (req.files?.image_2)           updates.image_2           = req.files.image_2[0].filename;
-    if (req.files?.image_3)           updates.image_3           = req.files.image_3[0].filename;
-    if (req.files?.image_4)           updates.image_4           = req.files.image_4[0].filename;
-    if (req.files?.product_catalogue) updates.product_catalogue = req.files.product_catalogue[0].filename;
-    if (req.files?.product_catelogs)  updates.product_catelogs  = req.files.product_catelogs[0].filename;
+    if (req.files?.f_image) updates.f_image = req.files.f_image[0].filename;
+    if (req.files?.image_2) updates.image_2 = req.files.image_2[0].filename;
+    if (req.files?.image_3) updates.image_3 = req.files.image_3[0].filename;
+    if (req.files?.image_4) updates.image_4 = req.files.image_4[0].filename;
+    if (req.files?.product_catalogue)
+      updates.product_catalogue = req.files.product_catalogue[0].filename;
+    if (req.files?.product_catelogs)
+      updates.product_catelogs = req.files.product_catelogs[0].filename;
 
-    if (updates.pricing_tiers) updates.pricing_tiers = JSON.stringify(updates.pricing_tiers);
+    if (updates.pricing_tiers)
+      updates.pricing_tiers = JSON.stringify(updates.pricing_tiers);
 
-    const newQuantity = updates.quantity !== undefined ? Number(updates.quantity) : undefined;
+    const newQuantity =
+      updates.quantity !== undefined ? Number(updates.quantity) : undefined;
     delete updates.quantity;
 
     const pool = await connectDB();
@@ -533,11 +540,13 @@ export const updateProduct = async (req, res) => {
 
     const [[currentProduct]] = await conn.query(
       `SELECT quantity, seller_id FROM product WHERE id = ?`,
-      [id]
+      [id],
     );
     if (!currentProduct) {
       await conn.rollback();
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
     const fieldsToUpdate = { ...updates };
@@ -545,26 +554,35 @@ export const updateProduct = async (req, res) => {
 
     if (Object.keys(fieldsToUpdate).length === 0) {
       await conn.rollback();
-      return res.status(400).json({ success: false, message: "No fields to update" });
+      return res
+        .status(400)
+        .json({ success: false, message: "No fields to update" });
     }
 
-    const fields = Object.keys(fieldsToUpdate).map((k) => `${k} = ?`).join(", ");
+    const fields = Object.keys(fieldsToUpdate)
+      .map((k) => `${k} = ?`)
+      .join(", ");
     const values = [...Object.values(fieldsToUpdate), id];
 
-    const [result] = await conn.query(`UPDATE product SET ${fields} WHERE id = ?`, values);
+    const [result] = await conn.query(
+      `UPDATE product SET ${fields} WHERE id = ?`,
+      values,
+    );
 
     if (result.affectedRows === 0) {
       await conn.rollback();
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
     if (newQuantity !== undefined) {
       const quantityBefore = Number(currentProduct.quantity);
-      const quantityAfter  = newQuantity;
-      const diff           = quantityAfter - quantityBefore;
+      const quantityAfter = newQuantity;
+      const diff = quantityAfter - quantityBefore;
 
       if (diff !== 0) {
-        const changeType     = diff > 0 ? "add" : "deduct";
+        const changeType = diff > 0 ? "add" : "deduct";
         const quantityChange = Math.abs(diff);
 
         await conn.query(
@@ -572,17 +590,28 @@ export const updateProduct = async (req, res) => {
              (product_id, seller_id, change_type, quantity_change,
               quantity_before, quantity_after, order_type, note)
            VALUES (?, ?, ?, ?, ?, ?, 'manual', 'Manual quantity update')`,
-          [id, currentProduct.seller_id, changeType, quantityChange, quantityBefore, quantityAfter]
+          [
+            id,
+            currentProduct.seller_id,
+            changeType,
+            quantityChange,
+            quantityBefore,
+            quantityAfter,
+          ],
         );
       }
     }
 
     await conn.commit();
-    return res.status(200).json({ success: true, message: "Product updated successfully" });
+    return res
+      .status(200)
+      .json({ success: true, message: "Product updated successfully" });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error updating product:", err);
-    return res.status(500).json({ success: false, message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
   } finally {
     if (conn) conn.release();
   }
@@ -594,36 +623,42 @@ export const getProductInventory = async (req, res) => {
     const { product_id } = req.params;
 
     if (!product_id)
-      return res.status(400).json({ success: false, message: "product_id is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "product_id is required" });
 
     const [[product]] = await pool.query(
       `SELECT id, name, sku, quantity, seller_id FROM product WHERE id = ?`,
-      [product_id]
+      [product_id],
     );
     if (!product)
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     const [history] = await pool.query(
       `SELECT * FROM product_inventory
        WHERE product_id = ?
        ORDER BY created_at DESC`,
-      [product_id]
+      [product_id],
     );
 
     return res.status(200).json({
       success: true,
       product: {
-        id:               product.id,
-        name:             product.name,
-        sku:              product.sku,
-        seller_id:        product.seller_id,
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        seller_id: product.seller_id,
         current_quantity: product.quantity,
       },
       inventory_history: history,
     });
   } catch (err) {
     console.error("Error fetching product inventory:", err);
-    return res.status(500).json({ success: false, message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
   }
 };
 
@@ -651,17 +686,19 @@ export const getAllInventory = async (req, res) => {
       FROM product_inventory pi
       JOIN product p ON p.id = pi.product_id
       JOIN seller  s ON s.id = pi.seller_id
-      ORDER BY pi.created_at DESC`
+      ORDER BY pi.created_at DESC`,
     );
 
     return res.status(200).json({
       success: true,
-      total:   inventory.length,
+      total: inventory.length,
       inventory,
     });
   } catch (err) {
     console.error("Error fetching all inventory:", err);
-    return res.status(500).json({ success: false, message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
   }
 };
 // =======================================================
@@ -715,10 +752,36 @@ export const deleteProduct = async (req, res) => {
 // =======================================================
 // ✅ FETCH PRODUCTS
 // =======================================================
+// export const getAllProducts = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const [rows] = await pool.query("SELECT * FROM product ORDER BY id DESC");
+//     return res.status(200).json({ success: true, data: rows });
+//   } catch (err) {
+//     console.error("Error fetching products:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   }
+// };
+
 export const getAllProducts = async (req, res) => {
   try {
     const pool = await connectDB();
-    const [rows] = await pool.query("SELECT * FROM product ORDER BY id DESC");
+    const [rows] = await pool.query(`
+      SELECT 
+        p.*,
+        s.name AS seller_name,
+        c.name AS color_name,
+        f.name AS finish_name,
+        m.name AS material_name
+      FROM product p
+      LEFT JOIN sellers s ON s.id = p.seller_id
+      LEFT JOIN colors c ON c.id = p.color_id
+      LEFT JOIN finishes f ON f.id = p.finish_id
+      LEFT JOIN materials m ON m.id = p.material_id
+      ORDER BY p.id DESC
+    `);
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
     console.error("Error fetching products:", err);
@@ -811,6 +874,185 @@ export const getProductById = async (req, res) => {
   }
 };
 
+export const getProductBySellerId = async (req, res) => {
+  try {
+    const { seller_id } = req.params;
+    const pool = await connectDB();
+
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        p.*,
+        COUNT(pr.id) AS total_reviews,
+        COALESCE(AVG(pr.rating), 0) AS avg_rating
+      FROM product p
+      LEFT JOIN product_reviews pr ON pr.product_id = p.id
+      WHERE p.seller_id = ?
+      GROUP BY p.id
+      `,
+      [seller_id],
+    );
+
+    if (rows.length === 0)
+      return res
+        .status(404)
+        .json({ success: false, message: "No products found for this seller" });
+
+    const products = rows.map((row) => ({
+      ...row,
+      avg_rating: parseFloat(row.avg_rating).toFixed(1),
+    }));
+
+    return res.status(200).json({ success: true, data: products });
+  } catch (err) {
+    console.error("Error fetching products by seller ID:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
+  }
+};
+
+export const getSellerReport = async (req, res) => {
+  try {
+    const { seller_id, month, year } = req.query;
+
+    if (!year) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Year is required" });
+    }
+
+    const pool = await connectDB();
+
+    let query = `
+      SELECT 
+        YEAR(o.created_at)  AS year,
+        MONTH(o.created_at) AS month,
+        op.seller_id,
+        COUNT(op.id)                                                                    AS total_orders,
+        SUM(op.quantity)                                                                AS total_quantity,
+        SUM(op.price)                                                                   AS total_revenue,
+        SUM(CASE WHEN op.order_status = 'Delivered' THEN op.price ELSE 0 END)          AS delivered_revenue,
+        SUM(CASE WHEN op.order_status = 'Confirmed' THEN op.price ELSE 0 END)          AS confirmed_revenue,
+        SUM(CASE WHEN op.order_status = 'New'       THEN op.price ELSE 0 END)          AS new_revenue
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      WHERE YEAR(o.created_at) = ?
+    `;
+
+    const params = [year];
+
+    // ── seller filter (optional) ──────────────────────────────────────────────
+    if (seller_id) {
+      query += ` AND op.seller_id = ?`;
+      params.push(seller_id);
+    }
+
+    // ── month filter (optional) ───────────────────────────────────────────────
+    if (month) {
+      query += ` AND MONTH(o.created_at) = ?`;
+      params.push(month);
+    }
+
+    query += `
+      GROUP BY YEAR(o.created_at), MONTH(o.created_at), op.seller_id
+      ORDER BY op.seller_id ASC, month ASC
+    `;
+
+    const [rows] = await pool.query(query, params);
+
+    // ── When NO specific month requested → fill missing months with zeros ─────
+    if (!month) {
+      const allMonths = Array.from({ length: 12 }, (_, i) => i + 1);
+
+      // Get unique seller ids present in the result
+      const sellerIds = seller_id
+        ? [seller_id]
+        : [...new Set(rows.map((r) => r.seller_id))];
+
+      const filledData = [];
+
+      for (const sid of sellerIds) {
+        const sellerRows = rows.filter(
+          (r) => String(r.seller_id) === String(sid),
+        );
+
+        const monthlyMap = {};
+        sellerRows.forEach((r) => {
+          monthlyMap[r.month] = r;
+        });
+
+        // Build 12-month array, zero-fill missing months
+        const monthly = allMonths.map((m) => ({
+          year: Number(year),
+          month: m,
+          seller_id: sid,
+          total_orders: monthlyMap[m]?.total_orders ?? 0,
+          total_quantity: monthlyMap[m]?.total_quantity ?? 0,
+          total_revenue: monthlyMap[m]?.total_revenue ?? 0,
+          delivered_revenue: monthlyMap[m]?.delivered_revenue ?? 0,
+          confirmed_revenue: monthlyMap[m]?.confirmed_revenue ?? 0,
+          new_revenue: monthlyMap[m]?.new_revenue ?? 0,
+        }));
+
+        // Yearly totals for this seller
+        const yearly_total = {
+          total_orders: monthly.reduce((s, r) => s + Number(r.total_orders), 0),
+          total_quantity: monthly.reduce(
+            (s, r) => s + Number(r.total_quantity),
+            0,
+          ),
+          total_revenue: monthly.reduce(
+            (s, r) => s + Number(r.total_revenue),
+            0,
+          ),
+          delivered_revenue: monthly.reduce(
+            (s, r) => s + Number(r.delivered_revenue),
+            0,
+          ),
+          confirmed_revenue: monthly.reduce(
+            (s, r) => s + Number(r.confirmed_revenue),
+            0,
+          ),
+          new_revenue: monthly.reduce((s, r) => s + Number(r.new_revenue), 0),
+        };
+
+        filledData.push({
+          seller_id: sid,
+          year: Number(year),
+          monthly,
+          yearly_total,
+        });
+      }
+
+      // If nothing at all found
+      if (filledData.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "No data found" });
+      }
+
+      return res.status(200).json({
+        success: true,
+        // Unwrap single seller → plain object (seller panel); keep array for admin panel
+        data: seller_id ? filledData[0] : filledData,
+      });
+    }
+
+    // ── Specific month requested → return raw rows as-is ─────────────────────
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "No data found" });
+    }
+
+    return res.status(200).json({ success: true, data: rows });
+  } catch (err) {
+    console.error("Error fetching seller report:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
+  }
+};
+
 export const getProductsByCategory = async (req, res) => {
   try {
     const { id } = req.params;
@@ -827,13 +1069,44 @@ export const getProductsByCategory = async (req, res) => {
   }
 };
 
+// export const getProductsBySubCategory = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const pool = await connectDB();
+//     const [rows] = await pool.query(
+//       "SELECT * FROM product WHERE cat_sub_id = ?",
+//       [id],
+//     );
+//     return res.status(200).json({ success: true, data: rows });
+//   } catch (err) {
+//     console.error("Error fetching products by subcategory:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   }
+// };
+
 export const getProductsBySubCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const pool = await connectDB();
     const [rows] = await pool.query(
-      "SELECT * FROM product WHERE cat_sub_id = ?",
-      [id],
+      `
+      SELECT 
+        p.*,
+        s.name AS seller_name,
+        c.name AS color_name,
+        f.name AS finish_name,
+        m.name AS material_name
+      FROM product p
+      LEFT JOIN seller s ON s.id = p.seller_id
+      LEFT JOIN color_master c ON c.id = p.color_id
+      LEFT JOIN finish_master f ON f.id = p.finish_id
+      LEFT JOIN material_master m ON m.id = p.material_id
+      WHERE p.cat_sub_id = ?
+      ORDER BY p.id DESC
+      `,
+      [id]
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {

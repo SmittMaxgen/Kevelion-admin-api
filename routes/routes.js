@@ -22,6 +22,7 @@ import countryMaster from "./productMasterRoutes/countryMasterRoutes.js";
 import finishMaster from "./productMasterRoutes/finishMasterRoutes.js";
 import paypal from "./payPalRoutes/payPalRoutes.js";
 import razorpay from "./razorPayRoutes/razorPayRoutes.js";
+import contact from "./contactRoutes/contactRoutes.js";
 
 export const router = Router();
 
@@ -52,3 +53,4 @@ router.use(materialMaster);
 router.use(finishMaster);
 router.use(paypal);
 router.use(razorpay);
+router.use(contact);

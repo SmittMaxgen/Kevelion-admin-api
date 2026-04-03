@@ -17,6 +17,7 @@ import {
   verifyOtp,
   createVendorPackage,
   deleteVendorPackage,
+  verifyVendorPackagePayment,
 } from "../../controllers/sellerController/sellerControlller.js";
 import { upload } from "../../middlewares/upload.js";
 
@@ -80,7 +81,7 @@ router.delete("/seller/:id", deleteSeller);
 // Admin approve & activate vendor package
 router.post("/seller/approve-package", approveVendorPackage);
 
-// RENEW OR UPGRADE PACKAGE 
+// RENEW OR UPGRADE PACKAGE
 router.post("/seller/renew-package", renewOrUpgradePackage);
 
 // seller login
@@ -92,11 +93,16 @@ router.post("/seller/login/send-otp", sendLoginOtp);
 // verify Otp
 router.post("/seller/login/verify-otp", verifyOtp);
 
-// seller package history 
+// seller package history
 router.get("/seller/package-history/:seller_id", getVendorPackages);
 
 // create seller package history
 router.post("/seller/package-history/:seller_id", createVendorPackage);
+
+router.post(
+  "/seller/package-history/:seller_id/verify",
+  verifyVendorPackagePayment,
+);
 
 router.delete("/seller/package-history/:id", deleteVendorPackage);
 
