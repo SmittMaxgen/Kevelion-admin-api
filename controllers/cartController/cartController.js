@@ -995,6 +995,7 @@ export const getCartByBuyerId = async (req, res) => {
         `SELECT c.*, 
           p.name, p.sku, p.product_MRP, p.pricing_tiers, p.detail, p.brand, p.material,
           p.specification, p.warranty, p.status AS product_status,
+          p.f_image, p.image_2, p.image_3, p.image_4,
           s.name AS seller_name, s.mobile AS seller_phone
          FROM cart_item c
          LEFT JOIN product p ON c.product_id = p.id
@@ -1032,7 +1033,11 @@ export const getCartByBuyerId = async (req, res) => {
                 brand: item.brand,
                 material: item.material,
                 specification: item.specification,
-                warranty: item.warranty
+                warranty: item.warranty,
+                f_image: item.f_image,
+                image_2: item.image_2,
+                image_3: item.image_3,
+                image_4: item.image_4
               },
 
               seller_details: {
