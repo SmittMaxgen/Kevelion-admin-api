@@ -37,10 +37,38 @@ export const createProductCategory = async (req, res) => {
 };
 
 // ======================= GET ALL PRODUCT CATEGORIES ===========================
+// export const getAllProductCategories = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const [rows] = await pool.query(`SELECT * FROM product_category ORDER BY id DESC`);
+//     res.status(200).json(rows);
+//   } catch (err) {
+//     console.error("Error fetching product categories:", err.code, err.sqlMessage);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const getAllProductCategories = async (req, res) => {
   try {
     const pool = await connectDB();
-    const [rows] = await pool.query(`SELECT * FROM product_category ORDER BY id DESC`);
+
+    const { search } = req.query;
+
+    let conditions = [];
+    let params = [];
+
+    if (search) {
+      conditions.push(`category_name LIKE ?`);
+      params.push(`%${search}%`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const [rows] = await pool.query(
+      `SELECT * FROM product_category ${whereClause} ORDER BY id DESC`,
+      params
+    );
+
     res.status(200).json(rows);
   } catch (err) {
     console.error("Error fetching product categories:", err.code, err.sqlMessage);

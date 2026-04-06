@@ -765,31 +765,114 @@ export const deleteProduct = async (req, res) => {
 //   }
 // };
 
+// export const getAllProducts = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const [rows] = await pool.query(`
+//       SELECT 
+//         p.*,
+//         s.name AS seller_name,
+//         c.name AS color_name,
+//         f.name AS finish_name,
+//         m.name AS material_name
+//       FROM product p
+//       LEFT JOIN sellers s ON s.id = p.seller_id
+//       LEFT JOIN colors c ON c.id = p.color_id
+//       LEFT JOIN finishes f ON f.id = p.finish_id
+//       LEFT JOIN materials m ON m.id = p.material_id
+//       ORDER BY p.id DESC
+//     `);
+//     return res.status(200).json({ success: true, data: rows });
+//   } catch (err) {
+//     console.error("Error fetching products:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   }
+// };
+
+
 export const getAllProducts = async (req, res) => {
   try {
     const pool = await connectDB();
+
+    const {
+      search,
+      cat_id,
+      cat_sub_id,
+      seller_id,
+      status,
+      featured,
+      highlight,
+      brand,
+      color_id,
+      finish_id,
+      material_id,
+      min_price,
+      max_price,
+    } = req.query;
+
+    let conditions = [];
+    let params = [];
+
+    if (search) {
+      conditions.push(`(p.name LIKE ? OR p.sku LIKE ? OR p.brand LIKE ?)`);
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    if (cat_id)       { conditions.push(`p.cat_id = ?`);       params.push(cat_id); }
+    if (cat_sub_id)   { conditions.push(`p.cat_sub_id = ?`);   params.push(cat_sub_id); }
+    if (seller_id)    { conditions.push(`p.seller_id = ?`);    params.push(seller_id); }
+    if (status)       { conditions.push(`p.status = ?`);       params.push(status); }
+    if (featured)     { conditions.push(`p.featured = ?`);     params.push(featured); }
+    if (highlight)    { conditions.push(`p.highlight = ?`);    params.push(highlight); }
+    if (brand)        { conditions.push(`p.brand LIKE ?`);     params.push(`%${brand}%`); }
+    if (color_id)     { conditions.push(`p.color_id = ?`);     params.push(color_id); }
+    if (finish_id)    { conditions.push(`p.finish_id = ?`);    params.push(finish_id); }
+    if (material_id)  { conditions.push(`p.material_id = ?`);  params.push(material_id); }
+    if (min_price)    { conditions.push(`p.product_MRP >= ?`); params.push(min_price); }
+    if (max_price)    { conditions.push(`p.product_MRP <= ?`); params.push(max_price); }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // const [rows] = await pool.query(`
+    //   SELECT 
+    //     p.*,
+    //     s.name AS seller_name,
+    //     c.name AS color_name,
+    //     f.name AS finish_name,
+    //     m.name AS material_name
+    //   FROM product p
+    //   LEFT JOIN sellers s ON s.id = p.seller_id
+    //   LEFT JOIN colors c ON c.id = p.color_id
+    //   LEFT JOIN finishes f ON f.id = p.finish_id
+    //   LEFT JOIN materials m ON m.id = p.material_id
+    //   ${whereClause}
+    //   ORDER BY p.id DESC
+    // `, params);
+
     const [rows] = await pool.query(`
-      SELECT 
-        p.*,
-        s.name AS seller_name,
-        c.name AS color_name,
-        f.name AS finish_name,
-        m.name AS material_name
-      FROM product p
-      LEFT JOIN sellers s ON s.id = p.seller_id
-      LEFT JOIN colors c ON c.id = p.color_id
-      LEFT JOIN finishes f ON f.id = p.finish_id
-      LEFT JOIN materials m ON m.id = p.material_id
-      ORDER BY p.id DESC
-    `);
+  SELECT 
+    p.*,
+    s.name AS seller_name,
+    c.name AS color_name,
+    f.name AS finish_name,
+    m.name AS material_name
+  FROM product p
+  LEFT JOIN seller s ON s.id = p.seller_id
+  LEFT JOIN color_master c ON c.id = p.color_id
+  LEFT JOIN finish_master f ON f.id = p.finish_id
+  LEFT JOIN material_master m ON m.id = p.material_id
+  ${whereClause}
+  ORDER BY p.id DESC
+`, params);
+
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
     console.error("Error fetching products:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: err.message });
+    return res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
+
 
 export const getAllFeaturedProducts = async (req, res) => {
   try {

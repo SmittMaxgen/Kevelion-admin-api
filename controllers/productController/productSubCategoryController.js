@@ -22,7 +22,7 @@ export const createProductSubCategory = async (req, res) => {
     const [result] = await conn.query(
       `INSERT INTO product_subcategory (subcategory_name, image, category_id)
        VALUES (?, ?, ?)`,
-      [subcategory_name,  image, category_id]
+      [subcategory_name, image, category_id],
     );
 
     await conn.commit();
@@ -40,16 +40,58 @@ export const createProductSubCategory = async (req, res) => {
 };
 
 // ======================= GET ALL PRODUCT SUBCATEGORIES ===========================
+// export const getAllProductSubCategories = async (req, res) => {
+//   try {
+//     const pool = await connectDB(); // use pool directly
+//     const [rows] = await pool.query(`
+//       SELECT ps.*, pc.category_name
+
+//       FROM product_subcategory ps
+//       JOIN product_category pc ON ps.category_id = pc.id
+//       ORDER BY ps.id DESC
+//     `);
+//     res.status(200).json(rows);
+//   } catch (err) {
+//     console.error("Error fetching subcategories:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const getAllProductSubCategories = async (req, res) => {
   try {
-    const pool = await connectDB(); // use pool directly
-    const [rows] = await pool.query(`
+    const pool = await connectDB();
+
+    const { search, category_id } = req.query;
+
+    let conditions = [];
+    let params = [];
+
+    if (search) {
+      conditions.push(
+        `(ps.subcategory_name LIKE ? OR pc.category_name LIKE ?)`,
+      );
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    if (category_id) {
+      conditions.push(`ps.category_id = ?`);
+      params.push(category_id);
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(" AND ")}`
+      : "";
+
+    const [rows] = await pool.query(
+      `
       SELECT ps.*, pc.category_name 
-      
       FROM product_subcategory ps
       JOIN product_category pc ON ps.category_id = pc.id
+      ${whereClause}
       ORDER BY ps.id DESC
-    `);
+    `,
+      params,
+    );
+
     res.status(200).json(rows);
   } catch (err) {
     console.error("Error fetching subcategories:", err);
@@ -67,7 +109,7 @@ export const getProductSubCategoryById = async (req, res) => {
        FROM product_subcategory ps 
        LEFT JOIN product_category pc ON ps.category_id = pc.id 
        WHERE ps.id = ?`,
-      [id]
+      [id],
     );
 
     if (rows.length === 0) {
@@ -91,7 +133,10 @@ export const updateProductSubCategory = async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const [existing] = await conn.query(`SELECT * FROM product_subcategory WHERE id = ?`, [id]);
+    const [existing] = await conn.query(
+      `SELECT * FROM product_subcategory WHERE id = ?`,
+      [id],
+    );
     if (existing.length === 0) {
       await conn.rollback();
       return res.status(404).json({ message: "Product subcategory not found" });
@@ -110,11 +155,13 @@ export const updateProductSubCategory = async (req, res) => {
         image,
         category_id ?? existing[0].category_id,
         id,
-      ]
+      ],
     );
 
     await conn.commit();
-    res.status(200).json({ message: "Product subcategory updated successfully" });
+    res
+      .status(200)
+      .json({ message: "Product subcategory updated successfully" });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error updating product subcategory:", err);
@@ -133,7 +180,10 @@ export const deleteProductSubCategory = async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const [existing] = await conn.query(`SELECT * FROM product_subcategory WHERE id = ?`, [id]);
+    const [existing] = await conn.query(
+      `SELECT * FROM product_subcategory WHERE id = ?`,
+      [id],
+    );
     if (existing.length === 0) {
       await conn.rollback();
       return res.status(404).json({ message: "Product subcategory not found" });
@@ -146,7 +196,9 @@ export const deleteProductSubCategory = async (req, res) => {
     await conn.query(`DELETE FROM product_subcategory WHERE id = ?`, [id]);
     await conn.commit();
 
-    res.status(200).json({ message: "Product subcategory deleted successfully" });
+    res
+      .status(200)
+      .json({ message: "Product subcategory deleted successfully" });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error deleting product subcategory:", err);
@@ -185,6 +237,3 @@ LIMIT 6;
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
-
-
