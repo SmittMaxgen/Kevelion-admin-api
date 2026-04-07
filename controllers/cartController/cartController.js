@@ -1,4 +1,4 @@
- import { connectDB } from "../../connection/db.js";
+import { connectDB } from "../../connection/db.js";
 import bcrypt from "bcrypt";
 
 //====== add / remove product from cat page ===================
@@ -14,7 +14,7 @@ export const changeCartQty = async (req, res) => {
     /* 1️⃣ Get active cart */
     const [cartRows] = await pool.query(
       `SELECT id FROM buyer_cart WHERE buyer_id = ? AND status = 'ACTIVE'`,
-      [buyer_id]
+      [buyer_id],
     );
 
     if (cartRows.length === 0) {
@@ -26,7 +26,7 @@ export const changeCartQty = async (req, res) => {
     /* 2️⃣ Get cart item */
     const [itemRows] = await pool.query(
       `SELECT quantity FROM cart_item WHERE cart_id = ? AND product_id = ?`,
-      [cartId, product_id]
+      [cartId, product_id],
     );
 
     if (itemRows.length === 0) {
@@ -39,7 +39,7 @@ export const changeCartQty = async (req, res) => {
     const [prod] = await pool.query(
       `SELECT product_MRP, pricing_tiers, moq 
        FROM product WHERE id = ?`,
-      [product_id]
+      [product_id],
     );
 
     const product = prod[0];
@@ -54,7 +54,7 @@ export const changeCartQty = async (req, res) => {
     } else if (action === "decrease") {
       if (currentQty <= MOQ) {
         return res.status(400).json({
-          message: `Minimum order quantity is ${MOQ}`
+          message: `Minimum order quantity is ${MOQ}`,
         });
       }
       newQty -= 1;
@@ -91,31 +91,21 @@ export const changeCartQty = async (req, res) => {
         final_amount = ?,
         discount_amount = ?
        WHERE cart_id = ? AND product_id = ?`,
-      [
-        newQty,
-        finalUnitPrice,
-        total,
-        final,
-        discount,
-        cartId,
-        product_id
-      ]
+      [newQty, finalUnitPrice, total, final, discount, cartId, product_id],
     );
 
     return res.status(200).json({
       status: "success",
       message: "Quantity updated",
-      quantity: newQty
+      quantity: newQty,
     });
-
   } catch (err) {
     console.error("Change qty error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-
-//=========================add item in cart 
+//=========================add item in cart
 
 export const addToCart = async (req, res) => {
   try {
@@ -123,13 +113,15 @@ export const addToCart = async (req, res) => {
     const { buyer_id, product_id, quantity = 1 } = req.body;
 
     if (!buyer_id || !product_id) {
-      return res.status(400).json({ message: "buyer_id and product_id required" });
+      return res
+        .status(400)
+        .json({ message: "buyer_id and product_id required" });
     }
 
     /* 1️⃣ Get ACTIVE cart */
     const [cartRows] = await pool.query(
       `SELECT id FROM buyer_cart WHERE buyer_id = ? AND status = 'ACTIVE'`,
-      [buyer_id]
+      [buyer_id],
     );
 
     let cartId;
@@ -138,7 +130,7 @@ export const addToCart = async (req, res) => {
     } else {
       const [newCart] = await pool.query(
         `INSERT INTO buyer_cart (buyer_id, status) VALUES (?, 'ACTIVE')`,
-        [buyer_id]
+        [buyer_id],
       );
       cartId = newCart.insertId;
     }
@@ -147,7 +139,7 @@ export const addToCart = async (req, res) => {
     const [prod] = await pool.query(
       `SELECT id, product_MRP, pricing_tiers, moq 
        FROM product WHERE id = ?`,
-      [product_id]
+      [product_id],
     );
 
     if (prod.length === 0) {
@@ -161,7 +153,7 @@ export const addToCart = async (req, res) => {
     /* 3️⃣ Check if already in cart */
     const [existingItem] = await pool.query(
       `SELECT quantity FROM cart_item WHERE cart_id = ? AND product_id = ?`,
-      [cartId, product_id]
+      [cartId, product_id],
     );
 
     let newQty;
@@ -201,15 +193,7 @@ export const addToCart = async (req, res) => {
           final_amount = ?,
           discount_amount = ?
          WHERE cart_id = ? AND product_id = ?`,
-        [
-          newQty,
-          finalUnitPrice,
-          total,
-          final,
-          discount,
-          cartId,
-          product_id
-        ]
+        [newQty, finalUnitPrice, total, final, discount, cartId, product_id],
       );
     } else {
       await pool.query(
@@ -224,8 +208,8 @@ export const addToCart = async (req, res) => {
           finalUnitPrice,
           total,
           discount,
-          final
-        ]
+          final,
+        ],
       );
     }
 
@@ -233,16 +217,13 @@ export const addToCart = async (req, res) => {
       status: "success",
       message: "Item added to cart",
       cart_id: cartId,
-      quantity: newQty
+      quantity: newQty,
     });
-
   } catch (err) {
     console.error("Add to cart error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
-
-
 
 // ======================= CREATE sibgle product cart cart=====================
 
@@ -252,13 +233,15 @@ export const createCart = async (req, res) => {
     const { buyer_id, product_id, quantity = 1 } = req.body;
 
     if (!buyer_id || !product_id) {
-      return res.status(400).json({ message: "buyer_id and product_id are required" });
+      return res
+        .status(400)
+        .json({ message: "buyer_id and product_id are required" });
     }
 
     // Create main cart
     const [cartResult] = await pool.query(
       `INSERT INTO buyer_cart (buyer_id) VALUES (?)`,
-      [buyer_id]
+      [buyer_id],
     );
 
     const cartId = cartResult.insertId;
@@ -267,58 +250,58 @@ export const createCart = async (req, res) => {
     const [prod] = await pool.query(
       `SELECT id, name, sku, product_MRP, pricing_tiers, detail, brand, material, specification, warranty, seller_id, status
        FROM product WHERE id = ?`,
-      [product_id]
+      [product_id],
     );
 
     if (prod.length === 0) {
-      return res.status(400).json({ message: `Invalid product_id ${product_id}` });
+      return res
+        .status(400)
+        .json({ message: `Invalid product_id ${product_id}` });
     }
 
     const product = prod[0];
 
     // Convert price
-const price = Number(product.product_MRP);
+    const price = Number(product.product_MRP);
 
-// Tier price calculation
-let finalUnitPrice = price;
-let discountedPrice = price;
+    // Tier price calculation
+    let finalUnitPrice = price;
+    let discountedPrice = price;
 
-let tiers = product.pricing_tiers;
+    let tiers = product.pricing_tiers;
 
-// Parse JSON safely even if double-encoded
-try {
-  tiers = JSON.parse(tiers);
-  if (typeof tiers === "string") {
-    tiers = JSON.parse(tiers);
-  }
-} catch (e) {
-  tiers = [];
-}
-
-
-
-try {
- // const tiers = JSON.parse(product.pricing_tiers);
-
-  if (Array.isArray(tiers)) {
-    tiers.sort((a, b) => Number(a.min) - Number(b.min));
-
-    for (let tier of tiers) {
-      if (quantity >= Number(tier.min)) {
-        finalUnitPrice = Number(tier.price);
-        discountedPrice = Number(tier.price);
+    // Parse JSON safely even if double-encoded
+    try {
+      tiers = JSON.parse(tiers);
+      if (typeof tiers === "string") {
+        tiers = JSON.parse(tiers);
       }
+    } catch (e) {
+      tiers = [];
     }
-  }
-} catch (err) {
-  finalUnitPrice = price;
-  discountedPrice = price;
-}
 
-// Calculations
-const total_amount = price * quantity;            
-const final_amount = finalUnitPrice * quantity;  
-const discount_amount = total_amount - final_amount;
+    try {
+      // const tiers = JSON.parse(product.pricing_tiers);
+
+      if (Array.isArray(tiers)) {
+        tiers.sort((a, b) => Number(a.min) - Number(b.min));
+
+        for (let tier of tiers) {
+          if (quantity >= Number(tier.min)) {
+            finalUnitPrice = Number(tier.price);
+            discountedPrice = Number(tier.price);
+          }
+        }
+      }
+    } catch (err) {
+      finalUnitPrice = price;
+      discountedPrice = price;
+    }
+
+    // Calculations
+    const total_amount = price * quantity;
+    const final_amount = finalUnitPrice * quantity;
+    const discount_amount = total_amount - final_amount;
 
     // Insert into cart_item
     await pool.query(
@@ -333,22 +316,22 @@ const discount_amount = total_amount - final_amount;
         discountedPrice,
         total_amount,
         discount_amount,
-        final_amount
-      ]
+        final_amount,
+      ],
     );
 
     // Fetch buyer
     const [buyer] = await pool.query(
       `SELECT id AS buyer_id, name AS buyer_name, email AS buyer_email, mobile AS buyer_mobile
        FROM buyer WHERE id = ?`,
-      [buyer_id]
+      [buyer_id],
     );
 
     // Fetch seller
     const [seller] = await pool.query(
       `SELECT name AS seller_name, mobile AS seller_phone 
        FROM seller WHERE id = ?`,
-      [product.seller_id]
+      [product.seller_id],
     );
 
     // Final Response
@@ -358,8 +341,8 @@ const discount_amount = total_amount - final_amount;
         id: cartId,
         cart_type: "Cart",
         total_amount,
-          discount_amount,
-          final_amount,
+        discount_amount,
+        final_amount,
         product: {
           product_id: product.id,
           name: product.name,
@@ -374,18 +357,16 @@ const discount_amount = total_amount - final_amount;
           material: product.material,
           specification: product.specification,
           warranty: product.warranty,
-          seller_details: seller[0]
+          seller_details: seller[0],
         },
-        buyer_details: buyer[0]
-      }
+        buyer_details: buyer[0],
+      },
     });
-
   } catch (err) {
     console.error("Error creating single-product cart:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
 
 //====================== GET ALL Cart ==========================================
 export const getAllCarts = async (req, res) => {
@@ -393,7 +374,9 @@ export const getAllCarts = async (req, res) => {
     const pool = await connectDB();
 
     // Fetch all carts
-    const [carts] = await pool.query(`SELECT * FROM buyer_cart ORDER BY id DESC`);
+    const [carts] = await pool.query(
+      `SELECT * FROM buyer_cart ORDER BY id DESC`,
+    );
 
     let finalResult = [];
 
@@ -403,19 +386,20 @@ export const getAllCarts = async (req, res) => {
         `SELECT c.*, 
           p.name, p.sku, p.product_MRP, p.pricing_tiers, p.detail, p.brand, p.material,
           p.specification, p.warranty, p.status AS product_status,
+          p.f_image, p.image_2, p.image_3, p.image_4,
           s.name AS seller_name, s.mobile AS seller_phone
          FROM cart_item c
          LEFT JOIN product p ON c.product_id = p.id
          LEFT JOIN seller s ON p.seller_id = s.id
          WHERE c.cart_id = ?`,
-        [cart.id]
+        [cart.id],
       );
 
       // Buyer details
       const [buyer] = await pool.query(
         `SELECT id AS buyer_id, name AS buyer_name, email AS buyer_email, mobile AS buyer_mobile
          FROM buyer WHERE id = ?`,
-        [cart.buyer_id]
+        [cart.buyer_id],
       );
 
       const formattedProducts = cartProducts.map((item) => ({
@@ -437,12 +421,16 @@ export const getAllCarts = async (req, res) => {
           brand: item.brand,
           material: item.material,
           specification: item.specification,
-          warranty: item.warranty
+          warranty: item.warranty,
+           f_image: item.f_image,
+                image_2: item.image_2,
+                image_3: item.image_3,
+                image_4: item.image_4,
         },
         seller_details: {
           seller_name: item.seller_name,
-          seller_phone: item.seller_phone
-        }
+          seller_phone: item.seller_phone,
+        },
       }));
 
       finalResult.push({
@@ -451,12 +439,11 @@ export const getAllCarts = async (req, res) => {
         created_at: cart.created_at,
         updated_at: cart.updated_at,
         products: formattedProducts,
-        buyer_details: buyer[0]
+        buyer_details: buyer[0],
       });
     }
 
     res.status(200).json({ status: "success", data: finalResult });
-
   } catch (err) {
     console.error("Error fetching carts:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -470,13 +457,15 @@ export const updateCart = async (req, res) => {
     const { cart_id, products } = req.body;
 
     if (!cart_id || !products || products.length === 0) {
-      return res.status(400).json({ message: "cart_id and products are required" });
+      return res
+        .status(400)
+        .json({ message: "cart_id and products are required" });
     }
 
     // Check if cart exists
     const [existingCart] = await pool.query(
       `SELECT * FROM buyer_cart WHERE id = ?`,
-      [cart_id]
+      [cart_id],
     );
 
     if (existingCart.length === 0) {
@@ -487,11 +476,13 @@ export const updateCart = async (req, res) => {
     for (const p of products) {
       const [prodData] = await pool.query(
         `SELECT id, product_MRP, pricing_tiers FROM product WHERE id = ?`,
-        [p.product_id]
+        [p.product_id],
       );
 
       if (prodData.length === 0) {
-        return res.status(400).json({ message: `Invalid product_id ${p.product_id}` });
+        return res
+          .status(400)
+          .json({ message: `Invalid product_id ${p.product_id}` });
       }
 
       const product = prodData[0];
@@ -515,7 +506,7 @@ export const updateCart = async (req, res) => {
       // Check if item already exists in cart
       const [existingItem] = await pool.query(
         `SELECT * FROM cart_item WHERE cart_id = ? AND product_id = ?`,
-        [cart_id, product.id]
+        [cart_id, product.id],
       );
 
       if (existingItem.length > 0) {
@@ -523,7 +514,7 @@ export const updateCart = async (req, res) => {
         if (quantity === 0) {
           await pool.query(
             `DELETE FROM cart_item WHERE cart_id = ? AND product_id = ?`,
-            [cart_id, product.id]
+            [cart_id, product.id],
           );
         } else {
           // Update item
@@ -544,8 +535,8 @@ export const updateCart = async (req, res) => {
               discount_amount,
               final_amount,
               cart_id,
-              product.id
-            ]
+              product.id,
+            ],
           );
         }
       } else {
@@ -562,17 +553,16 @@ export const updateCart = async (req, res) => {
             discountedPrice,
             total_amount,
             discount_amount,
-            final_amount
-          ]
+            final_amount,
+          ],
         );
       }
     }
 
     // Fetch updated cart data (same as createCart)
-    const [cart] = await pool.query(
-      `SELECT * FROM buyer_cart WHERE id = ?`,
-      [cart_id]
-    );
+    const [cart] = await pool.query(`SELECT * FROM buyer_cart WHERE id = ?`, [
+      cart_id,
+    ]);
 
     const [cartProducts] = await pool.query(
       `SELECT c.*, 
@@ -583,13 +573,13 @@ export const updateCart = async (req, res) => {
        LEFT JOIN product p ON c.product_id = p.id
        LEFT JOIN seller s ON p.seller_id = s.id
        WHERE c.cart_id = ?`,
-      [cart_id]
+      [cart_id],
     );
 
     const [buyer] = await pool.query(
       `SELECT id AS buyer_id, name AS buyer_name, email AS buyer_email, mobile AS buyer_mobile
        FROM buyer WHERE id = ?`,
-      [existingCart[0].buyer_id]
+      [existingCart[0].buyer_id],
     );
 
     const formattedProducts = cartProducts.map((item) => ({
@@ -611,12 +601,12 @@ export const updateCart = async (req, res) => {
         brand: item.brand,
         material: item.material,
         specification: item.specification,
-        warranty: item.warranty
+        warranty: item.warranty,
       },
       seller_details: {
         seller_name: item.seller_name,
-        seller_phone: item.seller_phone
-      }
+        seller_phone: item.seller_phone,
+      },
     }));
 
     return res.status(200).json({
@@ -628,10 +618,9 @@ export const updateCart = async (req, res) => {
         created_at: cart[0].created_at,
         updated_at: cart[0].updated_at,
         products: formattedProducts,
-        buyer_details: buyer[0]
-      }
+        buyer_details: buyer[0],
+      },
     });
-
   } catch (err) {
     console.error("Error updating cart:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -646,10 +635,9 @@ export const getCartById = async (req, res) => {
     const { id } = req.params;
 
     // Fetch cart
-    const [cart] = await pool.query(
-      `SELECT * FROM buyer_cart WHERE id = ?`, 
-      [id]
-    );
+    const [cart] = await pool.query(`SELECT * FROM buyer_cart WHERE id = ?`, [
+      id,
+    ]);
 
     if (cart.length === 0) {
       return res.status(404).json({ message: "Cart not found" });
@@ -666,7 +654,7 @@ export const getCartById = async (req, res) => {
        LEFT JOIN seller s ON p.seller_id = s.id
        WHERE c.cart_id = ?
        LIMIT 1`,
-      [id]
+      [id],
     );
 
     if (cartItem.length === 0) {
@@ -679,7 +667,8 @@ export const getCartById = async (req, res) => {
     const [buyer] = await pool.query(
       `SELECT id AS buyer_id, name AS buyer_name, email AS buyer_email, mobile AS buyer_mobile
        FROM buyer WHERE id = ?`,
-      [item.buyer_id])
+      [item.buyer_id],
+    );
 
     // FINAL RESPONSE EXACTLY LIKE createCart
     res.status(200).json({
@@ -707,14 +696,13 @@ export const getCartById = async (req, res) => {
           warranty: item.warranty,
           seller_details: {
             seller_name: item.seller_name,
-            seller_phone: item.seller_phone
-          }
+            seller_phone: item.seller_phone,
+          },
         },
 
-        buyer_details: buyer[0]
-      }
+        buyer_details: buyer[0],
+      },
     });
-
   } catch (err) {
     console.error("Error fetching cart:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -971,7 +959,7 @@ export const getCartByBuyerId = async (req, res) => {
     // Fetch all carts
     const [carts] = await pool.query(
       `SELECT * FROM buyer_cart WHERE buyer_id = ? ORDER BY id DESC`,
-      [buyer_id]
+      [buyer_id],
     );
 
     if (!carts.length) {
@@ -982,14 +970,13 @@ export const getCartByBuyerId = async (req, res) => {
     const [buyer] = await pool.query(
       `SELECT id AS buyer_id, name AS buyer_name, email AS buyer_email, mobile AS buyer_mobile
        FROM buyer WHERE id = ?`,
-      [buyer_id]
+      [buyer_id],
     );
 
     const buyerDetails = buyer[0];
     let finalResult = [];
 
     for (const cart of carts) {
-
       // Fetch product (may be 0 rows)
       const [cartProduct] = await pool.query(
         `SELECT c.*, 
@@ -1002,7 +989,7 @@ export const getCartByBuyerId = async (req, res) => {
          LEFT JOIN seller s ON p.seller_id = s.id
          WHERE c.cart_id = ?
          LIMIT 1`,
-        [cart.id]
+        [cart.id],
       );
 
       let item = cartProduct[0] || null; // allow empty carts
@@ -1037,35 +1024,31 @@ export const getCartByBuyerId = async (req, res) => {
                 f_image: item.f_image,
                 image_2: item.image_2,
                 image_3: item.image_3,
-                image_4: item.image_4
+                image_4: item.image_4,
               },
 
               seller_details: {
                 seller_name: item.seller_name,
-                seller_phone: item.seller_phone
-              }
+                seller_phone: item.seller_phone,
+              },
             }
-          : { product_details: null } // empty cart
-        ),
+          : { product_details: null }), // empty cart
 
-        buyer_details: buyerDetails
+        buyer_details: buyerDetails,
       });
     }
 
     res.status(200).json({
       status: "success",
-      data: finalResult
+      data: finalResult,
     });
-
   } catch (err) {
     console.error("Error fetching cart:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-
 //=================delete cart by buyer id ================================
-
 
 export const removeCartByBuyerId = async (req, res) => {
   try {
@@ -1075,7 +1058,7 @@ export const removeCartByBuyerId = async (req, res) => {
     // 1️⃣ Get all cart IDs for buyer
     const [carts] = await pool.query(
       `SELECT id FROM buyer_cart WHERE buyer_id = ?`,
-      [buyer_id]
+      [buyer_id],
     );
 
     if (carts.length === 0) {
@@ -1083,36 +1066,26 @@ export const removeCartByBuyerId = async (req, res) => {
     }
 
     // Extract cart IDs
-    const cartIds = carts.map(cart => cart.id);
+    const cartIds = carts.map((cart) => cart.id);
 
     // 2️⃣ Delete all cart items
-    await pool.query(
-      `DELETE FROM cart_item WHERE cart_id IN (?)`,
-      [cartIds]
-    );
+    await pool.query(`DELETE FROM cart_item WHERE cart_id IN (?)`, [cartIds]);
 
     // 3️⃣ Delete all carts
-    await pool.query(
-      `DELETE FROM buyer_cart WHERE id IN (?)`,
-      [cartIds]
-    );
+    await pool.query(`DELETE FROM buyer_cart WHERE id IN (?)`, [cartIds]);
 
     res.status(200).json({
       status: "success",
-      message: "All carts and cart items deleted successfully"
+      message: "All carts and cart items deleted successfully",
     });
-
   } catch (err) {
     console.error("Error deleting cart:", err);
     res.status(500).json({
       message: "Server error",
-      error: err.message
+      error: err.message,
     });
   }
 };
-
-
-
 
 // ======================= DELETE CART ===========================
 export const deleteCart = async (req, res) => {
@@ -1121,7 +1094,9 @@ export const deleteCart = async (req, res) => {
     const { cart_id } = req.params;
 
     // Check if cart exists
-    const [cart] = await pool.query(`SELECT * FROM buyer_cart WHERE id = ?`, [cart_id]);
+    const [cart] = await pool.query(`SELECT * FROM buyer_cart WHERE id = ?`, [
+      cart_id,
+    ]);
     if (cart.length === 0) {
       return res.status(404).json({ message: "Cart not found" });
     }
@@ -1134,12 +1109,11 @@ export const deleteCart = async (req, res) => {
 
     res.status(200).json({
       status: "success",
-      message: "Cart deleted successfully"
+      message: "Cart deleted successfully",
     });
-
   } catch (err) {
     console.error("Error deleting cart:", err);
-    res.status(500).json({message: "Server error", error: err.message });
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
@@ -1152,7 +1126,7 @@ export const removeCartItem = async (req, res) => {
     // Check item exists
     const [item] = await pool.query(
       `SELECT cart_id FROM cart_item WHERE id = ?`,
-      [item_id]
+      [item_id],
     );
 
     if (item.length === 0) {
@@ -1167,7 +1141,7 @@ export const removeCartItem = async (req, res) => {
     // Check remaining items
     const [remainingItems] = await pool.query(
       `SELECT COUNT(*) AS count FROM cart_item WHERE cart_id = ?`,
-      [cartId]
+      [cartId],
     );
 
     if (remainingItems[0].count === 0) {
@@ -1176,14 +1150,10 @@ export const removeCartItem = async (req, res) => {
 
     res.status(200).json({
       status: "success",
-      message: "Item removed successfully"
+      message: "Item removed successfully",
     });
-
   } catch (err) {
     console.error("Error removing cart item:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
-
-
