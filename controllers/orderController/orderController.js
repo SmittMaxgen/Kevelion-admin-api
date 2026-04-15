@@ -1613,52 +1613,96 @@ import { connectDB } from "../../connection/db.js";
 // =====================================================================
 
 /** Reusable product SELECT — explicit aliases, no wildcards */
-const PRODUCT_SELECT_SQL = `
-  SELECT
-    op.id              AS op_id,
-    op.order_id        AS op_order_id,
-    op.product_id      AS op_product_id,
-    op.seller_id       AS op_seller_id,
-    op.quantity        AS op_quantity,
-    op.price           AS op_price,
-    op.order_status    AS op_order_status,
-    op.payment_status  AS op_payment_status,
+// const PRODUCT_SELECT_SQL = `
+//   SELECT
+//     op.id              AS op_id,
+//     op.order_id        AS op_order_id,
+//     op.product_id      AS op_product_id,
+//     op.seller_id       AS op_seller_id,
+//     op.quantity        AS op_quantity,
+//     op.price           AS op_price,
+//     op.order_status    AS op_order_status,
+//     op.payment_status  AS op_payment_status,
 
-    p.name             AS product_name,
+//     p.name             AS product_name,
+//     p.sku,
+//     p.status,
+//     p.product_MRP,
+//     p.moq,
+//     p.brand            AS product_brand,
+//     p.material         AS product_material,
+//     p.f_image          AS product_f_image,
+//     p.image_2,
+//     p.image_3,
+//     p.image_4,
+//     p.made_in,
+//     p.specification,
+//     p.warranty,
+//     p.cat_id           AS product_cat_id,
+//     p.cat_sub_id       AS product_cat_sub_id,
+
+//     s.name             AS seller_name,
+//     s.mobile           AS seller_phone,
+
+//     sh.tracking_number,
+//     sh.estimated_delivery_date,
+//     sh.actual_delivery_date,
+//     sh.cancelled_date,
+//     sh.courier_name,
+//     sh.courier_company_name,
+//     sh.courier_mobile
+
+//   FROM order_products op
+//   LEFT JOIN product  p  ON op.product_id = p.id
+//   LEFT JOIN seller   s  ON op.seller_id  = s.id
+//   LEFT JOIN shipping sh ON sh.product_id = p.id AND sh.order_id = op.order_id
+//   WHERE op.order_id = ?
+// `;
+
+const PRODUCT_SELECT_SQL = `
+  SELECT 
+    op.id AS op_id,
+    op.order_id AS op_order_id,
+    op.product_id AS op_product_id,
+    op.seller_id AS op_seller_id,
+    op.quantity AS op_quantity,
+    op.price AS op_price,
+    op.order_status AS op_order_status,
+    op.payment_status AS op_payment_status,
+
+    -- Product details (FK)
+    p.name AS product_name,
     p.sku,
     p.status,
     p.product_MRP,
     p.moq,
-    p.brand            AS product_brand,
-    p.material         AS product_material,
-    p.f_image          AS product_f_image,
+    p.gst,
+    p.brand AS product_brand,
+    p.material AS product_material,
+    p.f_image AS product_f_image,
     p.image_2,
     p.image_3,
     p.image_4,
     p.made_in,
     p.specification,
     p.warranty,
-    p.cat_id           AS product_cat_id,
-    p.cat_sub_id       AS product_cat_sub_id,
+    p.cat_id AS product_cat_id,
+    p.cat_sub_id AS product_cat_sub_id,
 
-    s.name             AS seller_name,
-    s.mobile           AS seller_phone,
-
-    sh.tracking_number,
-    sh.estimated_delivery_date,
-    sh.actual_delivery_date,
-    sh.cancelled_date,
-    sh.courier_name,
-    sh.courier_company_name,
-    sh.courier_mobile
+    -- Seller details (FK)
+    s.name AS seller_name,
+    s.mobile AS seller_phone
 
   FROM order_products op
-  LEFT JOIN product  p  ON op.product_id = p.id
-  LEFT JOIN seller   s  ON op.seller_id  = s.id
-  LEFT JOIN shipping sh ON sh.product_id = p.id AND sh.order_id = op.order_id
+
+  LEFT JOIN product p 
+    ON op.product_id = p.id   -- 🔥 FK USED HERE
+
+  LEFT JOIN seller s 
+    ON op.seller_id = s.id    -- 🔥 FK USED HERE
+
   WHERE op.order_id = ?
 `;
-
 /** Map a raw DB product row → clean response object */
 const formatProduct = (p) => {
   const status = (p.op_order_status || "").toLowerCase();
@@ -1697,9 +1741,11 @@ const formatProduct = (p) => {
       name: p.product_name ?? null,
       sku: p.sku ?? null,
       status: p.status ?? null,
-      detail: p.product_name ?? null,
+      // detail: p.product_name ?? null,
+      detail: p.detail ?? null,
       product_MRP: p.product_MRP ?? null,
       moq: p.moq ?? null,
+      gst: p.gst ?? null,
       brand: p.product_brand ?? null,
       material: p.product_material ?? null,
       f_image: p.product_f_image ?? null,
@@ -1721,10 +1767,57 @@ const formatProduct = (p) => {
 };
 
 /** Attach formatted products + buyer_details to each order row */
+// const attachOrderDetails = async (pool, orders) => {
+//   for (const order of orders) {
+//     const [products] = await pool.query(PRODUCT_SELECT_SQL, [order.id]);
+//     order.products = products.map(formatProduct);
+
+//     order.buyer_details = {
+//       buyer_id: order.buyer_id ?? null,
+//       buyer_name: order.buyer_name ?? null,
+//       buyer_email: order.buyer_email ?? null,
+//       buyer_mobile: order.buyer_mobile ?? null,
+//     };
+
+//     delete order.buyer_id;
+//     delete order.buyer_name;
+//     delete order.buyer_email;
+//     delete order.buyer_mobile;
+//   }
+//   return orders;
+// };
+
 const attachOrderDetails = async (pool, orders) => {
   for (const order of orders) {
     const [products] = await pool.query(PRODUCT_SELECT_SQL, [order.id]);
-    order.products = products.map(formatProduct);
+
+    let total_base_amount = 0;
+    let total_gst_amount = 0;
+    let total_final_amount = 0;
+
+    const formattedProducts = products.map((p) => {
+      const price = Number(p.op_price) || 0;
+      const quantity = Number(p.op_quantity) || 0;
+      const baseAmount = price * quantity;
+
+      const gstPercent = Number(p.gst) || 0;
+      const gstAmount = (baseAmount * gstPercent) / 100;
+      const finalAmount = baseAmount + gstAmount;
+
+      // ✅ accumulate totals
+      total_base_amount += baseAmount;
+      total_gst_amount += gstAmount;
+      total_final_amount += finalAmount;
+
+      return formatProduct(p); // keep your existing structure
+    });
+
+    order.products = formattedProducts;
+
+    // ✅ ADD THESE FIELDS AT ORDER LEVEL
+    order.total_base_amount = total_base_amount;
+    order.total_gst_amount = total_gst_amount;
+    order.total_final_amount = total_final_amount;
 
     order.buyer_details = {
       buyer_id: order.buyer_id ?? null,
@@ -1738,15 +1831,122 @@ const attachOrderDetails = async (pool, orders) => {
     delete order.buyer_email;
     delete order.buyer_mobile;
   }
+
   return orders;
 };
 
 // =====================================================================
 //  CREATE ORDER
 // =====================================================================
+// export const createOrder = async (req, res) => {
+//   try {
+//     const { buyer_id, order_type = "Order", products } = req.body;
+
+//     // ── Top-level validation ───────────────────────────────────────
+//     if (!buyer_id) {
+//       return res.status(400).json({ message: "buyer_id is required" });
+//     }
+//     if (!Array.isArray(products) || products.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "products must be a non-empty array" });
+//     }
+
+//     // ── Per-product validation ─────────────────────────────────────
+//     const VALID_ORDER_STATUSES = [
+//       "New",
+//       "Processing",
+//       "Confirmed",
+//       "Shipped",
+//       "Out for Delivery",
+//       "Delivered",
+//       "Cancelled",
+//     ];
+//     const VALID_PAYMENT_STATUSES = ["Pending", "Paid", "Failed", "Refunded"];
+
+//     const productErrors = [];
+//     products.forEach((p, index) => {
+//       const errors = [];
+
+//       if (!p.product_id) errors.push("product_id is required");
+//       if (!p.seller_id) errors.push("seller_id is required");
+//       if (p.price === undefined || p.price === null)
+//         errors.push("price is required");
+//       else if (isNaN(Number(p.price)) || Number(p.price) < 0)
+//         errors.push("price must be a non-negative number");
+//       if (
+//         p.quantity !== undefined &&
+//         (isNaN(Number(p.quantity)) || Number(p.quantity) < 1)
+//       )
+//         errors.push("quantity must be a positive number");
+//       if (p.order_status && !VALID_ORDER_STATUSES.includes(p.order_status))
+//         errors.push(
+//           `order_status must be one of: ${VALID_ORDER_STATUSES.join(", ")}`,
+//         );
+//       if (
+//         p.payment_status &&
+//         !VALID_PAYMENT_STATUSES.includes(p.payment_status)
+//       )
+//         errors.push(
+//           `payment_status must be one of: ${VALID_PAYMENT_STATUSES.join(", ")}`,
+//         );
+
+//       if (errors.length > 0)
+//         productErrors.push({ index, product_id: p.product_id ?? null, errors });
+//     });
+
+//     if (productErrors.length > 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Invalid product data", productErrors });
+//     }
+
+//     // ── DB insert ──────────────────────────────────────────────────
+//     const pool = await connectDB();
+
+//     const [orderResult] = await pool.query(
+//       `INSERT INTO orders (buyer_id, order_type) VALUES (?, ?)`,
+//       [buyer_id, order_type],
+//     );
+//     const orderId = orderResult.insertId;
+
+//     for (const p of products) {
+//       await pool.query(
+//         `INSERT INTO order_products
+//            (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+//          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//         [
+//           orderId,
+//           p.product_id,
+//           p.seller_id,
+//           Number(p.quantity) || 1,
+//           Number(p.price),
+//           p.order_status || "New",
+//           p.payment_status || "Pending",
+//         ],
+//       );
+//     }
+
+//     return res
+//       .status(201)
+//       .json({ message: "Order created successfully", order_id: orderId });
+//   } catch (err) {
+//     console.error("Error creating order:", err);
+//     return res
+//       .status(500)
+//       .json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const createOrder = async (req, res) => {
   try {
-    const { buyer_id, order_type = "Order", products } = req.body;
+    const {
+      buyer_id,
+      order_type = "Order",
+      order_address,
+      order_contact,
+      products,
+    } = req.body;
 
     // ── Top-level validation ───────────────────────────────────────
     if (!buyer_id) {
@@ -1811,8 +2011,8 @@ export const createOrder = async (req, res) => {
     const pool = await connectDB();
 
     const [orderResult] = await pool.query(
-      `INSERT INTO orders (buyer_id, order_type) VALUES (?, ?)`,
-      [buyer_id, order_type],
+      `INSERT INTO orders (buyer_id, order_type, order_address, order_contact) VALUES (?, ?, ?, ?)`,
+      [buyer_id, order_type, order_address, order_contact],
     );
     const orderId = orderResult.insertId;
 
@@ -1847,11 +2047,62 @@ export const createOrder = async (req, res) => {
 // =====================================================================
 //  UPDATE ORDER
 // =====================================================================
+// export const updateOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+//     const { buyer_id, order_type, products } = req.body;
+
+//     if (!id) return res.status(400).json({ message: "Order id is required" });
+
+//     // Check order exists
+//     const [existing] = await pool.query(`SELECT id FROM orders WHERE id = ?`, [
+//       id,
+//     ]);
+//     if (existing.length === 0)
+//       return res.status(404).json({ message: "Order not found" });
+
+//     await pool.query(
+//       `UPDATE orders SET buyer_id = ?, order_type = ?, updated_at = NOW() WHERE id = ?`,
+//       [buyer_id, order_type, id],
+//     );
+
+//     if (Array.isArray(products) && products.length > 0) {
+//       await pool.query(`DELETE FROM order_products WHERE order_id = ?`, [id]);
+
+//       for (const p of products) {
+//         await pool.query(
+//           `INSERT INTO order_products
+//              (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+//            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//           [
+//             id,
+//             p.product_id,
+//             p.seller_id,
+//             Number(p.quantity) || 1,
+//             Number(p.price),
+//             p.order_status || "New",
+//             p.payment_status || "Pending",
+//           ],
+//         );
+//       }
+//     }
+
+//     return res.status(200).json({ message: "Order updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating order:", err);
+//     return res
+//       .status(500)
+//       .json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const updateOrder = async (req, res) => {
   try {
     const pool = await connectDB();
     const { id } = req.params;
-    const { buyer_id, order_type, products } = req.body;
+    const { buyer_id, order_type, order_address, order_contact, products } =
+      req.body;
 
     if (!id) return res.status(400).json({ message: "Order id is required" });
 
@@ -1863,8 +2114,8 @@ export const updateOrder = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
 
     await pool.query(
-      `UPDATE orders SET buyer_id = ?, order_type = ?, updated_at = NOW() WHERE id = ?`,
-      [buyer_id, order_type, id],
+      `UPDATE orders SET buyer_id = ?, order_type = ?, order_address = ?, order_contact = ?, updated_at = NOW() WHERE id = ?`,
+      [buyer_id, order_type, order_address, order_contact, id],
     );
 
     if (Array.isArray(products) && products.length > 0) {
@@ -2099,7 +2350,9 @@ export const getAllOrder = async (req, res) => {
              o.buyer_id,
              b.name  AS buyer_name,
              b.email AS buyer_email,
-             b.mobile AS buyer_mobile
+             b.mobile AS buyer_mobile,
+              o.order_address,
+              o.order_contact
       FROM orders o
       LEFT JOIN buyer b ON o.buyer_id = b.id
       ORDER BY o.id DESC
@@ -2131,7 +2384,9 @@ export const getDataById = async (req, res) => {
              o.buyer_id,
              b.name  AS buyer_name,
              b.email AS buyer_email,
-             b.mobile AS buyer_mobile
+             b.mobile AS buyer_mobile,
+                 o.order_address,
+              o.order_contact
       FROM orders o
       LEFT JOIN buyer b ON o.buyer_id = b.id
       WHERE o.id = ?
@@ -2169,7 +2424,9 @@ export const getAllOrderByBuyer = async (req, res) => {
              o.buyer_id,
              b.name  AS buyer_name,
              b.email AS buyer_email,
-             b.mobile AS buyer_mobile
+             b.mobile AS buyer_mobile,
+               o.order_address,
+              o.order_contact
       FROM orders o
       LEFT JOIN buyer b ON o.buyer_id = b.id
       WHERE o.buyer_id = ?

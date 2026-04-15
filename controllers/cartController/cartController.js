@@ -384,9 +384,10 @@ export const getAllCarts = async (req, res) => {
       // Cart products
       const [cartProducts] = await pool.query(
         `SELECT c.*, 
-          p.name, p.sku, p.product_MRP, p.pricing_tiers, p.detail, p.brand, p.material,
+          p.name, p.sku, p.product_MRP, p.pricing_tiers, p.detail, p.brand, p.material,p.gst,
           p.specification, p.warranty, p.status AS product_status,
           p.f_image, p.image_2, p.image_3, p.image_4,
+          s.id AS seller_id,
           s.name AS seller_name, s.mobile AS seller_phone
          FROM cart_item c
          LEFT JOIN product p ON c.product_id = p.id
@@ -402,36 +403,84 @@ export const getAllCarts = async (req, res) => {
         [cart.buyer_id],
       );
 
-      const formattedProducts = cartProducts.map((item) => ({
-        id: item.id,
-        quantity: item.quantity,
-        price: item.price,
-        discounted_price: item.discounted_price,
-        total_amount: item.total_amount,
-        discount_amount: item.discount_amount,
-        final_amount: item.final_amount,
-        status: item.product_status,
-        product_details: {
-          id: item.product_id,
-          name: item.name,
-          sku: item.sku,
-          detail: item.detail,
-          product_MRP: item.product_MRP,
-          pricing_tiers: item.pricing_tiers,
-          brand: item.brand,
-          material: item.material,
-          specification: item.specification,
-          warranty: item.warranty,
-           f_image: item.f_image,
-                image_2: item.image_2,
-                image_3: item.image_3,
-                image_4: item.image_4,
-        },
-        seller_details: {
-          seller_name: item.seller_name,
-          seller_phone: item.seller_phone,
-        },
-      }));
+      // const formattedProducts = cartProducts.map((item) => ({
+      //   id: item.id,
+      //   quantity: item.quantity,
+      //   price: item.price,
+      //   discounted_price: item.discounted_price,
+      //   total_amount: item.total_amount,
+      //   discount_amount: item.discount_amount,
+      //   final_amount: item.final_amount,
+      //   status: item.product_status,
+      //   product_details: {
+      //     id: item.product_id,
+      //     name: item.name,
+      //     sku: item.sku,
+      //     detail: item.detail,
+      //     product_MRP: item.product_MRP,
+      //     pricing_tiers: item.pricing_tiers,
+      //     brand: item.brand,
+      //     material: item.material,
+      //     specification: item.specification,
+      //     warranty: item.warranty,
+      //     gst: item.gst,
+      //     f_image: item.f_image,
+      //     image_2: item.image_2,
+      //     image_3: item.image_3,
+      //     image_4: item.image_4,
+      //   },
+      //   seller_details: {
+      //     seller_name: item.seller_name,
+      //     seller_phone: item.seller_phone,
+      //   },
+      // }));
+
+      const formattedProducts = cartProducts.map((item) => {
+        const gstPercent = Number(item.gst) || 0;
+        const baseAmount = Number(item.final_amount) || 0;
+
+        const gst_amount = (baseAmount * gstPercent) / 100;
+        const gst_final_amount = baseAmount + gst_amount;
+
+        return {
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price,
+          discounted_price: item.discounted_price,
+          total_amount: item.total_amount,
+          discount_amount: item.discount_amount,
+          final_amount: item.final_amount,
+
+          // ✅ NEW FIELDS
+          gst_percentage: gstPercent,
+          gst_amount: gst_amount,
+          gst_final_amount: gst_final_amount,
+
+          status: item.product_status,
+          product_details: {
+            id: item.product_id,
+            seller_id: item.seller_id,
+            name: item.name,
+            sku: item.sku,
+            detail: item.detail,
+            product_MRP: item.product_MRP,
+            pricing_tiers: item.pricing_tiers,
+            brand: item.brand,
+            material: item.material,
+            specification: item.specification,
+            warranty: item.warranty,
+            gst: item.gst,
+            f_image: item.f_image,
+            image_2: item.image_2,
+            image_3: item.image_3,
+            image_4: item.image_4,
+          },
+          seller_details: {
+            seller_name: item.seller_name,
+            seller_phone: item.seller_phone,
+          },
+        };
+      });
 
       finalResult.push({
         id: cart.id,
