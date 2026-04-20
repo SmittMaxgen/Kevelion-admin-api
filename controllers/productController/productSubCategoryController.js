@@ -61,10 +61,17 @@ export const getAllProductSubCategories = async (req, res) => {
   try {
     const pool = await connectDB();
 
-    const { search, category_id } = req.query;
+    const { search, category_id, subcategory_name } = req.query;
 
     let conditions = [];
     let params = [];
+
+    if (search) {
+      conditions.push(
+        `(ps.subcategory_name LIKE ? OR pc.category_name LIKE ?)`,
+      );
+      params.push(`%${search}%`, `%${search}%`);
+    }
 
     if (search) {
       conditions.push(
@@ -76,6 +83,13 @@ export const getAllProductSubCategories = async (req, res) => {
       conditions.push(`ps.category_id = ?`);
       params.push(category_id);
     }
+
+    if (subcategory_name) {
+    conditions.push(
+      `LOWER(TRIM(ps.subcategory_name)) = LOWER(TRIM(?))`
+    );
+    params.push(subcategory_name);
+  }
 
     const whereClause = conditions.length
       ? `WHERE ${conditions.join(" AND ")}`

@@ -1,7 +1,6 @@
 import bcrypt from "bcrypt";
 import { connectDB } from "../../connection/db.js";
 
-
 // ======================= CREATE wishlist ===========================
 export const createWishlist = async (req, res) => {
   try {
@@ -9,32 +8,38 @@ export const createWishlist = async (req, res) => {
     const { buyer_id, product_id, seller_id } = req.body;
 
     if (!buyer_id || !product_id || !seller_id) {
-      return res.status(400).json({ message: "buyer_id , product_id, seller_id are required" });
+      return res
+        .status(400)
+        .json({ message: "buyer_id , product_id, seller_id are required" });
     }
 
     // Create wishlist
     const [wishlistResult] = await pool.query(
       `INSERT INTO wishlist (buyer_id, product_id,seller_id) VALUES (?, ?, ?)`,
-      [buyer_id, product_id, seller_id]
+      [buyer_id, product_id, seller_id],
     );
 
     const wishlistId = wishlistResult.insertId;
 
-    
-    res.status(201).json({ message: "Wishlist created successfully", wishlist_id: wishlistId });
+    res
+      .status(201)
+      .json({
+        message: "Wishlist created successfully",
+        wishlist_id: wishlistId,
+      });
   } catch (err) {
     console.error("Error creating Wishlist:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-
 // ======================= GET ALL Wishlist ===========================
 export const getAllWishlist = async (req, res) => {
   try {
     const pool = await connectDB();
-    const [wishlists] = await pool.query(`SELECT * FROM wishlist ORDER BY id DESC`);    
-   
+    const [wishlists] = await pool.query(
+      `SELECT * FROM wishlist ORDER BY id DESC`,
+    );
 
     res.status(200).json(wishlists);
   } catch (err) {
@@ -49,10 +54,13 @@ export const getDataById = async (req, res) => {
     const pool = await connectDB();
     const { id } = req.params;
 
-    const [wishlists] = await pool.query(`SELECT * FROM wishlist WHERE id = ?`, [id]);
-    if (wishlists.length === 0) return res.status(404).json({ message: "Wishlist  not found" });
+    const [wishlists] = await pool.query(
+      `SELECT * FROM wishlist WHERE id = ?`,
+      [id],
+    );
+    if (wishlists.length === 0)
+      return res.status(404).json({ message: "Wishlist  not found" });
     const wishlist = wishlists[0];
-    
 
     res.status(200).json(wishlist);
   } catch (err) {
@@ -77,15 +85,73 @@ export const deleteWishlist = async (req, res) => {
 };
 
 // ======================= FILTER: BY BUYER ID ===========================
+// export const getAllWishlistByBuyer = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { buyer_id } = req.params;
+
+//     const [wishlists] = await pool.query(`SELECT * FROM wishlist WHERE buyer_id = ?`, [buyer_id]);
+//     if (wishlists.length === 0) return res.status(404).json({ message: "No wishlist found for this buyer" });
+
+//     res.status(200).json(wishlists);
+//   } catch (err) {
+//     console.error("Error fetching buyer wishlist:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
 export const getAllWishlistByBuyer = async (req, res) => {
   try {
     const pool = await connectDB();
     const { buyer_id } = req.params;
 
-    const [wishlists] = await pool.query(`SELECT * FROM wishlist WHERE buyer_id = ?`, [buyer_id]);
-    if (wishlists.length === 0) return res.status(404).json({ message: "No wishlist found for this buyer" });
+    const [wishlists] = await pool.query(
+      `
+      SELECT 
+        w.id AS wishlist_id,
+        w.buyer_id,
+        w.product_id,
 
-    
+        p.name,
+        p.f_image,
+        p.image_2,
+        p.image_3,
+        p.image_4,
+        p.brand,
+        p.product_MRP,
+        p.moq,
+        p.quantity,
+        p.status,
+
+        IFNULL(r.total_reviews, 0) AS total_reviews,
+        IFNULL(r.avg_rating, 0) AS avg_rating
+
+      FROM wishlist w
+
+      LEFT JOIN product p 
+        ON w.product_id = p.id
+
+      LEFT JOIN (
+        SELECT 
+          product_id,
+          COUNT(*) AS total_reviews,
+          ROUND(AVG(rating),1) AS avg_rating
+        FROM product_reviews
+        GROUP BY product_id
+      ) r 
+        ON w.product_id = r.product_id
+
+      WHERE w.buyer_id = ?
+      `,
+      [buyer_id],
+    );
+
+    if (wishlists.length === 0) {
+      return res.status(404).json({
+        message: "No wishlist found for this buyer",
+      });
+    }
+
     res.status(200).json(wishlists);
   } catch (err) {
     console.error("Error fetching buyer wishlist:", err);

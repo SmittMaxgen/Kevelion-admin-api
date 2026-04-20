@@ -876,6 +876,7 @@ export const getAllProducts = async (req, res) => {
 
 export const getAllFeaturedProducts = async (req, res) => {
   try {
+    const { buyer_id } = req.body;
     const pool = await connectDB();
     const [rows] = await pool.query(
       "SELECT * FROM product WHERE `featured` = 'Yes'  ORDER BY id DESC",
