@@ -5,6 +5,7 @@ import {
   sendDataById,
   updateAdmin,
   deleteAdmin,
+  changeAdminPassword,
 } from "../../controllers/adminController/adminController.js";
 import { upload } from "../../middlewares/upload.js";
 
@@ -12,7 +13,7 @@ const router = Router();
 
 // Accept multiple files for buyer
 const adminUpload = upload.fields([
-  { name: "image", maxCount: 1 },                 // Profile photo
+  { name: "image", maxCount: 1 }, // Profile photo
 ]);
 
 // Routes
@@ -64,5 +65,6 @@ router.get("/admin/:id", sendDataById);
 
 router.delete("/admin/:id", deleteAdmin);
 
-export default router
- 
+router.put("/admin/change-password/:id", changeAdminPassword);
+
+export default router;

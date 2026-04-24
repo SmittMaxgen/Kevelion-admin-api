@@ -10,6 +10,7 @@ import {
   getAllCompanyByBuyer,
   getAllCompanyById,
   getBuyerByMobile,
+  changePassword,
 } from "../../controllers/buyerController/buyerController.js";
 import { upload } from "../../middlewares/upload.js";
 
@@ -28,7 +29,9 @@ const handleFileUpload = (req, res, next) => {
   if (contentType.includes("multipart/form-data")) {
     buyerUpload(req, res, (err) => {
       if (err) {
-        return res.status(400).json({ message: "File upload error", error: err.message });
+        return res
+          .status(400)
+          .json({ message: "File upload error", error: err.message });
       }
       next();
     });
@@ -37,10 +40,9 @@ const handleFileUpload = (req, res, next) => {
   }
 };
 
-
-
 // Routes
-router.post("/buyer",handleFileUpload, createBuyer);
+router.post("/buyer", handleFileUpload, createBuyer);
+router.put("/buyer/change-password", changePassword);
 
 router.get("/buyers", getAllBuyers);
 
@@ -52,12 +54,10 @@ router.get("/buyer/:id", getBuyerById);
 
 router.get("/buyer/mobile/:mobile", getBuyerByMobile);
 
-
-
-router.patch("/buyer/:id",handleFileUpload ,updateBuyer);
+router.patch("/buyer/:id", handleFileUpload, updateBuyer);
 
 router.delete("/buyer/:id", deleteBuyer);
-//company 
+//company
 
 router.get("/company", getAllCompany);
 
@@ -65,4 +65,4 @@ router.get("/company/buyer/:buyer_id", getAllCompanyByBuyer);
 
 router.get("/company/:id", getAllCompanyById);
 
-export default router
+export default router;

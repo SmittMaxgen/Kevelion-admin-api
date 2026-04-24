@@ -122,6 +122,7 @@ export const getAllWishlistByBuyer = async (req, res) => {
         p.moq,
         p.quantity,
         p.status,
+        p.seller_id,
 
         IFNULL(r.total_reviews, 0) AS total_reviews,
         IFNULL(r.avg_rating, 0) AS avg_rating

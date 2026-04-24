@@ -6,30 +6,58 @@ export const createAdmin = async (req, res) => {
   try {
     const pool = await connectDB();
 
-    const { name, mobile, email, password, status = "Inactive", device_token } = req.body;
+    const {
+      name,
+      mobile,
+      email,
+      password,
+      status = "Inactive",
+      device_token,
+    } = req.body;
 
-    if (!name || !mobile || !email || !password) {
+    if (!email || !password) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     // Check if email or mobile already exists
     const [existing] = await pool.query(
       "SELECT * FROM admins WHERE email = ? OR mobile = ?",
-      [email, mobile]
+      [email, mobile],
     );
 
-    if (existing.length > 0) {
-      const existsField = existing[0].email === email ? "Email" : "Mobile number";
-      return res.status(400).json({ message: `${existsField} already exists` });
-    }
+    // if (existing.length > 0) {
+    //   const existsField = existing[0].email === email ? "Email" : "Mobile number";
+    //   return res.status(400).json({ message: `${existsField} already exists` });
+    // }
 
+    if (existing.length > 0) {
+      const existsField =
+        existing[0].email === email ? "Email" : "Mobile number";
+
+      // ✅ Verify password against DB
+      const isMatch = await bcrypt.compare(password, existing[0].password);
+      if (!isMatch) {
+        return res.status(401).json({
+          message: `${existsField} already exists but password is incorrect`,
+        });
+      }
+
+      // ✅ Password matched — return existing admin data (exclude password)
+      const { password: _, ...adminData } = existing[0];
+      return res.status(400).json({
+        message: `${existsField} already exists`,
+        data: adminData,
+      });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
-    const profileImage = req.files?.["image"]?.[0] ? `/uploads/${req.files["image"][0].filename}` : "";
+    const profileImage = req.files?.["image"]?.[0]
+      ? `/uploads/${req.files["image"][0].filename}`
+      : "";
 
     const [result] = await pool.query(
       `INSERT INTO admins (name, mobile, email, password, image, status, device_token)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [name, mobile, email, hashedPassword, profileImage, status, device_token]
+      [name, mobile, email, hashedPassword, profileImage, status, device_token],
     );
 
     res.status(201).json({
@@ -49,27 +77,45 @@ export const updateAdmin = async (req, res) => {
     const adminId = req.params.id;
     const { name, mobile, email, password, status, device_token } = req.body;
 
-    const [adminRows] = await pool.query("SELECT * FROM admins WHERE id = ?", [adminId]);
+    const [adminRows] = await pool.query("SELECT * FROM admins WHERE id = ?", [
+      adminId,
+    ]);
     if (adminRows.length === 0) {
       return res.status(404).json({ message: "Admin not found" });
     }
 
     // Check if email is being updated and already exists
     if (email && email !== adminRows[0].email) {
-      const [emailRows] = await pool.query("SELECT * FROM admins WHERE email = ?", [email]);
+      const [emailRows] = await pool.query(
+        "SELECT * FROM admins WHERE email = ?",
+        [email],
+      );
       if (emailRows.length > 0) {
         return res.status(400).json({ message: "Email already exists" });
       }
     }
 
-    const newPassword = password ? await bcrypt.hash(password, 10) : adminRows[0].password;
-    const imagePath = req.files?.["image"]?.[0] ? `/uploads/${req.files["image"][0].filename}` : adminRows[0].image;
+    const newPassword = password
+      ? await bcrypt.hash(password, 10)
+      : adminRows[0].password;
+    const imagePath = req.files?.["image"]?.[0]
+      ? `/uploads/${req.files["image"][0].filename}`
+      : adminRows[0].image;
 
     await pool.query(
       `UPDATE admins
        SET name = ?, mobile = ?, email = ?, password = ?, status = ?, device_token = ?, image = ?, updated_at = NOW()
        WHERE id = ?`,
-      [name, mobile, email, newPassword, status, device_token, imagePath, adminId]
+      [
+        name,
+        mobile,
+        email,
+        newPassword,
+        status,
+        device_token,
+        imagePath,
+        adminId,
+      ],
     );
 
     res.status(200).json({ message: "Admin updated successfully" });
@@ -84,7 +130,7 @@ export const sendAllAdmins = async (req, res) => {
   try {
     const pool = await connectDB();
     const [admins] = await pool.query(
-      "SELECT id, name, mobile, email, image, status, device_token, created_at, updated_at FROM admins ORDER BY id DESC"
+      "SELECT id, name, mobile, email, image, status, device_token, created_at, updated_at FROM admins ORDER BY id DESC",
     );
     res.status(200).json(admins);
   } catch (err) {
@@ -99,7 +145,9 @@ export const deleteAdmin = async (req, res) => {
     const pool = await connectDB();
     const adminId = req.params.id;
 
-    const [rows] = await pool.query("SELECT * FROM admins WHERE id = ?", [adminId]);
+    const [rows] = await pool.query("SELECT * FROM admins WHERE id = ?", [
+      adminId,
+    ]);
     if (rows.length === 0) {
       return res.status(404).json({ message: "Admin not found" });
     }
@@ -128,6 +176,52 @@ export const sendDataById = async (req, res) => {
     res.status(200).json(admin);
   } catch (err) {
     console.error("Error fetching Admin by ID:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const changeAdminPassword = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { id } = req.params;
+    const { old_password, new_password } = req.body;
+
+    // Validate required fields
+    if (!old_password || !new_password) {
+      return res
+        .status(400)
+        .json({ message: "Old password and new password are required" });
+    }
+
+    // Fetch existing admin
+    const [existingAdmin] = await pool.query(
+      "SELECT * FROM admins WHERE id = ?",
+      [id],
+    );
+    if (existingAdmin.length === 0) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const currentAdmin = existingAdmin[0];
+
+    // Verify old password
+    const isMatch = await bcrypt.compare(old_password, currentAdmin.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Old password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    // Update password in DB
+    await pool.query("UPDATE admins SET password = ? WHERE id = ?", [
+      hashedPassword,
+      id,
+    ]);
+
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (err) {
+    console.error("Error changing admin password:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };

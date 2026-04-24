@@ -59,6 +59,7 @@ router.get("/product/:id", getProductById);
 // router.get("/product/:seller_id", getProductBySellerId);
 router.get("/product/seller_id/:seller_id", getProductBySellerId);
 router.get("/report/seller", getSellerReport);
+router.get("/report/admin", getSellerReport);
 router.get("/product-inventory",getAllInventory);
 router.get("/product/:product_id/inventory", getProductInventory);
 router.get("/product_category/:id", getProductsByCategory);

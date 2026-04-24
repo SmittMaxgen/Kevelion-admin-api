@@ -769,7 +769,7 @@ export const deleteProduct = async (req, res) => {
 //   try {
 //     const pool = await connectDB();
 //     const [rows] = await pool.query(`
-//       SELECT 
+//       SELECT
 //         p.*,
 //         s.name AS seller_name,
 //         c.name AS color_name,
@@ -790,7 +790,6 @@ export const deleteProduct = async (req, res) => {
 //       .json({ success: false, message: "Server error", error: err.message });
 //   }
 // };
-
 
 export const getAllProducts = async (req, res) => {
   try {
@@ -819,23 +818,61 @@ export const getAllProducts = async (req, res) => {
       conditions.push(`(p.name LIKE ? OR p.sku LIKE ? OR p.brand LIKE ?)`);
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
-    if (cat_id)       { conditions.push(`p.cat_id = ?`);       params.push(cat_id); }
-    if (cat_sub_id)   { conditions.push(`p.cat_sub_id = ?`);   params.push(cat_sub_id); }
-    if (seller_id)    { conditions.push(`p.seller_id = ?`);    params.push(seller_id); }
-    if (status)       { conditions.push(`p.status = ?`);       params.push(status); }
-    if (featured)     { conditions.push(`p.featured = ?`);     params.push(featured); }
-    if (highlight)    { conditions.push(`p.highlight = ?`);    params.push(highlight); }
-    if (brand)        { conditions.push(`p.brand LIKE ?`);     params.push(`%${brand}%`); }
-    if (color_id)     { conditions.push(`p.color_id = ?`);     params.push(color_id); }
-    if (finish_id)    { conditions.push(`p.finish_id = ?`);    params.push(finish_id); }
-    if (material_id)  { conditions.push(`p.material_id = ?`);  params.push(material_id); }
-    if (min_price)    { conditions.push(`p.product_MRP >= ?`); params.push(min_price); }
-    if (max_price)    { conditions.push(`p.product_MRP <= ?`); params.push(max_price); }
+    if (cat_id) {
+      conditions.push(`p.cat_id = ?`);
+      params.push(cat_id);
+    }
+    if (cat_sub_id) {
+      conditions.push(`p.cat_sub_id = ?`);
+      params.push(cat_sub_id);
+    }
+    if (seller_id) {
+      conditions.push(`p.seller_id = ?`);
+      params.push(seller_id);
+    }
+    if (status) {
+      conditions.push(`p.status = ?`);
+      params.push(status);
+    }
+    if (featured) {
+      conditions.push(`p.featured = ?`);
+      params.push(featured);
+    }
+    if (highlight) {
+      conditions.push(`p.highlight = ?`);
+      params.push(highlight);
+    }
+    if (brand) {
+      conditions.push(`p.brand LIKE ?`);
+      params.push(`%${brand}%`);
+    }
+    if (color_id) {
+      conditions.push(`p.color_id = ?`);
+      params.push(color_id);
+    }
+    if (finish_id) {
+      conditions.push(`p.finish_id = ?`);
+      params.push(finish_id);
+    }
+    if (material_id) {
+      conditions.push(`p.material_id = ?`);
+      params.push(material_id);
+    }
+    if (min_price) {
+      conditions.push(`p.product_MRP >= ?`);
+      params.push(min_price);
+    }
+    if (max_price) {
+      conditions.push(`p.product_MRP <= ?`);
+      params.push(max_price);
+    }
 
-    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(" AND ")}`
+      : "";
 
     // const [rows] = await pool.query(`
-    //   SELECT 
+    //   SELECT
     //     p.*,
     //     s.name AS seller_name,
     //     c.name AS color_name,
@@ -850,7 +887,8 @@ export const getAllProducts = async (req, res) => {
     //   ORDER BY p.id DESC
     // `, params);
 
-    const [rows] = await pool.query(`
+    const [rows] = await pool.query(
+      `
   SELECT 
     p.*,
     s.name AS seller_name,
@@ -864,29 +902,81 @@ export const getAllProducts = async (req, res) => {
   LEFT JOIN material_master m ON m.id = p.material_id
   ${whereClause}
   ORDER BY p.id DESC
-`, params);
-
-    return res.status(200).json({ success: true, data: rows });
-  } catch (err) {
-    console.error("Error fetching products:", err);
-    return res.status(500).json({ success: false, message: "Server error", error: err.message });
-  }
-};
-
-
-export const getAllFeaturedProducts = async (req, res) => {
-  try {
-    const { buyer_id } = req.body;
-    const pool = await connectDB();
-    const [rows] = await pool.query(
-      "SELECT * FROM product WHERE `featured` = 'Yes'  ORDER BY id DESC",
+`,
+      params,
     );
+
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
     console.error("Error fetching products:", err);
     return res
       .status(500)
       .json({ success: false, message: "Server error", error: err.message });
+  }
+};
+
+// export const getAllFeaturedProducts = async (req, res) => {
+//   try {
+//     const { buyer_id } = req.body;
+//     const pool = await connectDB();
+//     const [rows] = await pool.query(
+//       "SELECT * FROM product WHERE `featured` = 'Yes'  ORDER BY id DESC",
+//     );
+//     return res.status(200).json({ success: true, data: rows });
+//   } catch (err) {
+//     console.error("Error fetching products:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   }
+// };
+
+export const getAllFeaturedProducts = async (req, res) => {
+  try {
+    // const { buyer_id } = req.body;
+
+    const buyer_id = req.query.buyer_id; // Get buyer_id from query parameters
+    const pool = await connectDB();
+
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        p.*,
+
+        w.id AS wishlist_id,
+
+        COUNT(DISTINCT pr.id) AS total_reviews,
+        COALESCE(AVG(pr.rating), 0) AS avg_rating
+
+      FROM product p
+
+      LEFT JOIN wishlist w
+        ON w.product_id = p.id
+       AND w.buyer_id = ?
+
+      LEFT JOIN product_reviews pr
+        ON pr.product_id = p.id
+
+      WHERE p.featured = 'Yes'
+
+      GROUP BY p.id
+      ORDER BY p.id DESC
+      `,
+      [buyer_id],
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: rows,
+    });
+  } catch (err) {
+    console.error("Error fetching products:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
 
@@ -920,41 +1010,123 @@ export const getProductsBySeller = async (req, res) => {
 //   }
 // };
 
+// export const getProductById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const pool = await connectDB();
+
+//     const [rows] = await pool.query(
+//       `
+//       SELECT
+//         p.*,
+//         COUNT(pr.id) AS total_reviews,
+//         COALESCE(AVG(pr.rating), 0) AS avg_rating
+//       FROM product p
+//       LEFT JOIN product_reviews pr ON pr.product_id = p.id
+//       WHERE p.id = ?
+//       GROUP BY p.id
+//     `,
+//       [id],
+//     );
+
+//     if (rows.length === 0)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Product not found" });
+
+//     const product = {
+//       ...rows[0],
+//       avg_rating: parseFloat(rows[0].avg_rating).toFixed(1),
+//     };
+
+//     return res.status(200).json({ success: true, data: product });
+//   } catch (err) {
+//     console.error("Error fetching product by ID:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   }
+// };
+
 export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Logged-in buyer id from auth middleware
+    // const buyerId = req.user?.id || null;
+    const { buyerId } = req.query;
     const pool = await connectDB();
 
     const [rows] = await pool.query(
       `
       SELECT 
         p.*,
-        COUNT(pr.id) AS total_reviews,
+
+        -- wishlist (buyer wise)
+        w.id AS wishlist_id,
+
+        -- extra names
+        s.name AS seller_name,
+        c.name AS color_name,
+        f.name AS finish_name,
+        m.name AS material_name,
+
+        -- reviews
+        COUNT(DISTINCT pr.id) AS total_reviews,
         COALESCE(AVG(pr.rating), 0) AS avg_rating
+
       FROM product p
-      LEFT JOIN product_reviews pr ON pr.product_id = p.id
+
+      LEFT JOIN product_reviews pr
+        ON pr.product_id = p.id
+
+      LEFT JOIN wishlist w
+        ON w.product_id = p.id
+       AND w.buyer_id = ?
+
+      LEFT JOIN seller s
+        ON s.id = p.seller_id
+
+      LEFT JOIN color c
+        ON c.id = p.color_id
+
+      LEFT JOIN finish f
+        ON f.id = p.finish_id
+
+      LEFT JOIN material m
+        ON m.id = p.material_id
+
       WHERE p.id = ?
+
       GROUP BY p.id
-    `,
-      [id],
+      `,
+      [buyerId, id],
     );
 
-    if (rows.length === 0)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
 
     const product = {
       ...rows[0],
       avg_rating: parseFloat(rows[0].avg_rating).toFixed(1),
     };
 
-    return res.status(200).json({ success: true, data: product });
+    return res.status(200).json({
+      success: true,
+      data: product,
+    });
   } catch (err) {
     console.error("Error fetching product by ID:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: err.message });
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
 
@@ -1170,34 +1342,93 @@ export const getProductsByCategory = async (req, res) => {
 //   }
 // };
 
+// export const getProductsBySubCategory = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const pool = await connectDB();
+//     const [rows] = await pool.query(
+//       `
+//       SELECT
+//         p.*,
+//         s.name AS seller_name,
+//         c.name AS color_name,
+//         f.name AS finish_name,
+//         m.name AS material_name
+//       FROM product p
+//       LEFT JOIN seller s ON s.id = p.seller_id
+//       LEFT JOIN color_master c ON c.id = p.color_id
+//       LEFT JOIN finish_master f ON f.id = p.finish_id
+//       LEFT JOIN material_master m ON m.id = p.material_id
+//       WHERE p.cat_sub_id = ?
+//       ORDER BY p.id DESC
+//       `,
+//       [id]
+//     );
+//     return res.status(200).json({ success: true, data: rows });
+//   } catch (err) {
+//     console.error("Error fetching products by subcategory:", err);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: err.message });
+//   }
+// };
+
 export const getProductsBySubCategory = async (req, res) => {
   try {
     const { id } = req.params;
+    // const buyerId = req.user?.id || null;
+    const { buyerId } = req.query;
     const pool = await connectDB();
+
     const [rows] = await pool.query(
       `
       SELECT 
         p.*,
+
         s.name AS seller_name,
         c.name AS color_name,
         f.name AS finish_name,
-        m.name AS material_name
+        m.name AS material_name,
+
+        w.id AS wishlist_id,
+
+        COUNT(DISTINCT pr.id) AS total_reviews,
+        COALESCE(AVG(pr.rating), 0) AS avg_rating
+
       FROM product p
+
       LEFT JOIN seller s ON s.id = p.seller_id
       LEFT JOIN color_master c ON c.id = p.color_id
       LEFT JOIN finish_master f ON f.id = p.finish_id
       LEFT JOIN material_master m ON m.id = p.material_id
+
+      LEFT JOIN wishlist w 
+        ON w.product_id = p.id
+       AND w.buyer_id = ?
+
+      LEFT JOIN product_reviews pr
+        ON pr.product_id = p.id
+
       WHERE p.cat_sub_id = ?
+
+      GROUP BY p.id
       ORDER BY p.id DESC
       `,
-      [id]
+      [buyerId, id],
     );
-    return res.status(200).json({ success: true, data: rows });
+
+    return res.status(200).json({
+      success: true,
+      data: rows,
+    });
   } catch (err) {
     console.error("Error fetching products by subcategory:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: err.message });
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
 

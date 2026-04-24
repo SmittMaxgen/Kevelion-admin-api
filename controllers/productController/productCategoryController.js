@@ -17,16 +17,20 @@ export const createProductCategory = async (req, res) => {
     if (!category_name)
       return res.status(400).json({ message: "Category name is required" });
 
-    
     const image = getFilePath(req.file);
 
     const [result] = await conn.query(
       `INSERT INTO product_category (category_name, image) VALUES (?, ?)`,
-      [category_name, image]
+      [category_name, image],
     );
 
     await conn.commit();
-    res.status(201).json({ message: "Product category created", category_id: result.insertId });
+    res
+      .status(201)
+      .json({
+        message: "Product category created",
+        category_id: result.insertId,
+      });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error creating product category:", err.code, err.sqlMessage);
@@ -48,31 +52,82 @@ export const createProductCategory = async (req, res) => {
 //   }
 // };
 
+// export const getAllProductCategories = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+
+//     const { search } = req.query;
+
+//     let conditions = [];
+//     let params = [];
+
+//     if (search) {
+//       conditions.push(`category_name LIKE ?`);
+//       params.push(`%${search}%`);
+//     }
+
+//     const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+//     const [rows] = await pool.query(
+//       `SELECT * FROM product_category ${whereClause} ORDER BY id DESC`,
+//       params
+//     );
+
+//     res.status(200).json(rows);
+//   } catch (err) {
+//     console.error("Error fetching product categories:", err.code, err.sqlMessage);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const getAllProductCategories = async (req, res) => {
   try {
     const pool = await connectDB();
-
     const { search } = req.query;
 
     let conditions = [];
     let params = [];
 
     if (search) {
-      conditions.push(`category_name LIKE ?`);
+      conditions.push(`pc.category_name LIKE ?`);
       params.push(`%${search}%`);
     }
 
-    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(" AND ")}`
+      : "";
 
     const [rows] = await pool.query(
-      `SELECT * FROM product_category ${whereClause} ORDER BY id DESC`,
-      params
+      `
+      SELECT 
+        pc.*,
+        COUNT(p.id) AS total_products
+
+      FROM product_category pc
+
+      LEFT JOIN product p
+        ON p.cat_id = pc.id
+
+      ${whereClause}
+
+      GROUP BY pc.id
+      ORDER BY pc.id DESC
+      `,
+      params,
     );
 
     res.status(200).json(rows);
   } catch (err) {
-    console.error("Error fetching product categories:", err.code, err.sqlMessage);
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error(
+      "Error fetching product categories:",
+      err.code,
+      err.sqlMessage,
+    );
+
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
 
@@ -81,7 +136,10 @@ export const getProductCategoryById = async (req, res) => {
   try {
     const { id } = req.params;
     const pool = await connectDB();
-    const [rows] = await pool.query(`SELECT * FROM product_category WHERE id = ?`, [id]);
+    const [rows] = await pool.query(
+      `SELECT * FROM product_category WHERE id = ?`,
+      [id],
+    );
 
     if (rows.length === 0)
       return res.status(404).json({ message: "Product category not found" });
@@ -104,7 +162,10 @@ export const updateProductCategory = async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const [existing] = await conn.query(`SELECT * FROM product_category WHERE id = ?`, [id]);
+    const [existing] = await conn.query(
+      `SELECT * FROM product_category WHERE id = ?`,
+      [id],
+    );
     if (existing.length === 0)
       return res.status(404).json({ message: "Product category not found" });
 
@@ -112,11 +173,7 @@ export const updateProductCategory = async (req, res) => {
 
     await conn.query(
       `UPDATE product_category SET category_name = ?,  image = ? WHERE id = ?`,
-      [
-        category_name ?? existing[0].category_name,
-        image,
-        id,
-      ]
+      [category_name ?? existing[0].category_name, image, id],
     );
 
     await conn.commit();
@@ -140,7 +197,10 @@ export const deleteProductCategory = async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const [existing] = await conn.query(`SELECT * FROM product_category WHERE id = ?`, [id]);
+    const [existing] = await conn.query(
+      `SELECT * FROM product_category WHERE id = ?`,
+      [id],
+    );
     if (existing.length === 0)
       return res.status(404).json({ message: "Product category not found" });
 
@@ -171,70 +231,98 @@ export const getTotalProductCount = async (req, res) => {
     // First check if category exists in products table
     const [exists] = await pool.query(
       "SELECT 1 FROM product WHERE FIND_IN_SET(?, cat_id) LIMIT 1",
-      [cat_id]
+      [cat_id],
     );
 
     if (exists.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Category not found"
+        message: "Category not found",
       });
     }
 
     // If exists → get product count
     const [rows] = await pool.query(
-     "SELECT COUNT(*) AS total_products FROM product WHERE cat_id = ?",
-      [cat_id]
+      "SELECT COUNT(*) AS total_products FROM product WHERE cat_id = ?",
+      [cat_id],
     );
 
     // 3️⃣ Get category-wise brand count
     const [brands] = await pool.query(
       "SELECT COUNT(DISTINCT brand) AS total_brands FROM product WHERE cat_id = ?",
-  [cat_id]
+      [cat_id],
     );
 
     return res.status(200).json({
       success: true,
       total_products: rows[0].total_products,
-      total_brands: brands[0].total_brands
+      total_brands: brands[0].total_brands,
     });
-    
-    
-
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
 //==========GET ALL SUB CATEGORY BY CATEGORY ID==================
+// export const getAllSubCategoriesByCatID = async (req, res) => {
+//   try {
+//         const { cat_id } = req.params;
+
+//     const pool = await connectDB(); // use pool directly
+
+//     const [rows] = await pool.query(`
+//       SELECT ps.*, pc.category_name
+
+//       FROM product_subcategory ps
+//       JOIN product_category pc ON ps.category_id = pc.id
+//       WHERE ps.category_id = ?
+//       ORDER BY ps.id DESC`,[cat_id]);
+//     res.status(200).json(rows);
+//   } catch (err) {
+//     console.error("Error fetching subcategories:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const getAllSubCategoriesByCatID = async (req, res) => {
   try {
-        const { cat_id } = req.params;
-      
-    const pool = await connectDB(); // use pool directly
-    
-    const [rows] = await pool.query(`
-      SELECT ps.*, pc.category_name 
-      
+    const { cat_id } = req.params;
+
+    const pool = await connectDB();
+
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        ps.*,
+        pc.category_name,
+
+        COUNT(p.id) AS total_products
+
       FROM product_subcategory ps
-      JOIN product_category pc ON ps.category_id = pc.id
-      WHERE ps.category_id = ? 
-      ORDER BY ps.id DESC`,[cat_id]);
+
+      JOIN product_category pc
+        ON ps.category_id = pc.id
+
+      LEFT JOIN product p
+        ON p.cat_sub_id = ps.id
+
+      WHERE ps.category_id = ?
+
+      GROUP BY ps.id
+      ORDER BY ps.id DESC
+      `,
+      [cat_id],
+    );
+
     res.status(200).json(rows);
   } catch (err) {
     console.error("Error fetching subcategories:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
-
-
-
-
-
-
-
-
-
-

@@ -234,6 +234,7 @@ export const getBuyerById = async (req, res) => {
           b.is_online,
           b.subscription,
           b.created_at,
+          b.gst_no
 
           c.id AS company_id,
           c.company_name,
@@ -279,6 +280,7 @@ export const getBuyerById = async (req, res) => {
         mobile: row.mobile,
         image: row.image,
         status: row.status,
+        gst_no: row.gst_no,
         approve_status: row.approve_status,
         is_online: row.is_online,
         subscription: row.subscription,
@@ -516,6 +518,7 @@ export const updateBuyer = async (req, res) => {
       is_online,
       device_token,
       address_id,
+      gst_no,
 
       company_name,
       company_GST_number,
@@ -562,7 +565,7 @@ export const updateBuyer = async (req, res) => {
     // );
 
     await pool.query(
-      `UPDATE buyer SET name=?, mobile=?, email=?, image=?, address=?, status=?, address_id=?, approve_status=?, is_online=?, device_token=? WHERE id=?`,
+      `UPDATE buyer SET name=?, mobile=?, email=?, image=?, address=?, status=?, address_id=?, approve_status=?, is_online=?, device_token=? gst_no=? WHERE id=?`,
       [
         name || currentBuyer.name,
         mobile || currentBuyer.mobile,
@@ -574,6 +577,7 @@ export const updateBuyer = async (req, res) => {
         approve_status || currentBuyer.approve_status,
         is_online ?? currentBuyer.is_online,
         device_token || currentBuyer.device_token,
+        gst_no || currentBuyer.gst_no,
         id,
       ],
     );
@@ -723,6 +727,60 @@ export const deleteBuyer = async (req, res) => {
     res.status(200).json({ message: "Buyer deleted successfully" });
   } catch (err) {
     console.error("Error deleting buyer:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const pool = await connectDB();
+
+    const { buyer_id, old_password, new_password } = req.body;
+
+    // Step 1: Validate required fields
+    if (!buyer_id || !old_password || !new_password) {
+      return res.status(400).json({
+        message: "buyer_id, old_password, and new_password are required",
+      });
+    }
+
+    // Step 2: Fetch buyer record
+    const [rows] = await pool.query(
+      "SELECT id, password FROM buyer WHERE id = ?",
+      [buyer_id],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Buyer not found" });
+    }
+
+    const buyer = rows[0];
+
+    // Step 3: Verify old password
+    const isMatch = await bcrypt.compare(old_password, buyer.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Old password is incorrect" });
+    }
+
+    // Step 4: Prevent reusing the same password
+    const isSame = await bcrypt.compare(new_password, buyer.password);
+    if (isSame) {
+      return res.status(400).json({
+        message: "New password must be different from the old password",
+      });
+    }
+
+    // Step 5: Hash new password and update
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    await pool.query("UPDATE buyer SET password = ? WHERE id = ?", [
+      hashedPassword,
+      buyer_id,
+    ]);
+
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (err) {
+    console.error("Error changing password:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
