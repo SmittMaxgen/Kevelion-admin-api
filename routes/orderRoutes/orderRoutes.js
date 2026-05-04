@@ -10,6 +10,7 @@ import {
   getAllOrderInquiry,
   updateOrderProductStatus,
   getAllOrderOrdertype,
+  testPushNotification,
 } from "../../controllers/orderController/orderController.js";
 
 const router = Router();
@@ -17,6 +18,7 @@ const router = Router();
 // Routes
 
 router.post("/order", createOrder);
+router.post("/order/test", testPushNotification);
 
 router.patch("/order/:id", updateOrder);
 router.patch("/orderProduct/:order_product_id", updateOrderProductStatus);

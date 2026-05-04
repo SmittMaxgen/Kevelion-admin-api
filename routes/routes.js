@@ -23,6 +23,7 @@ import finishMaster from "./productMasterRoutes/finishMasterRoutes.js";
 import paypal from "./payPalRoutes/payPalRoutes.js";
 import razorpay from "./razorPayRoutes/razorPayRoutes.js";
 import contact from "./contactRoutes/contactRoutes.js";
+import notificationRoutes from "./notificationRoutes/notificationRoutes.js";
 
 export const router = Router();
 
@@ -54,3 +55,4 @@ router.use(finishMaster);
 router.use(paypal);
 router.use(razorpay);
 router.use(contact);
+router.use(notificationRoutes);

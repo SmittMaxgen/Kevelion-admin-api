@@ -457,6 +457,7 @@ export const updateSeller = async (req, res) => {
       mobile,
       email,
       password,
+      address,
       approve_status,
       device_token,
       subscription,
@@ -511,12 +512,13 @@ export const updateSeller = async (req, res) => {
     // );
 
     await pool.query(
-      `UPDATE seller SET name=?, mobile=?, email=?, password=?, approve_status=?, device_token=?, subscription=?, current_package_id=? WHERE id=?`,
+      `UPDATE seller SET name=?, mobile=?, email=?, password=?, address=? ,approve_status=?, device_token=?, subscription=?, current_package_id=? WHERE id=?`,
       [
         name || sellerRows[0].name,
         mobile || sellerRows[0].mobile,
         email || sellerRows[0].email,
         hashedPassword || sellerRows[0].password, // ✅ Fix 1: fallback to existing password
+        address || sellerRows[0].address,
         approve_status ?? sellerRows[0].approve_status, // ✅ Fix 2: ?? instead of ||
         device_token || sellerRows[0].device_token,
         subscription ?? sellerRows[0].subscription,
@@ -1145,10 +1147,13 @@ export const sellerLogin = async (req, res) => {
       [seller.id],
     );
 
-    const limitInfo = rows[0];
+    // const limitInfo = rows[0];
 
-    const remaining = limitInfo.remaining_slots ?? 0;
+    // const remaining = limitInfo.remaining_slots ?? 0;
 
+    const limitInfo = rows[0] ?? null;
+
+    const remaining = limitInfo?.remaining_slots ?? 0;
     /*
      // 3️⃣ Generate JWT token
     const token = jwt.sign(

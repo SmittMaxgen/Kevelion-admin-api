@@ -1607,6 +1607,7 @@
 // };
 
 import { connectDB } from "../../connection/db.js";
+import { sendOrderStatusNotification } from "../../utils/orderNotification.js";
 
 // =====================================================================
 //  SHARED HELPERS
@@ -2015,6 +2016,8 @@ export const createOrder = async (req, res) => {
       [buyer_id, order_type, order_address, order_contact],
     );
     const orderId = orderResult.insertId;
+    console.log("orderId====>>>>", orderId);
+    await sendOrderStatusNotification(buyer_id, orderId, "New");
 
     for (const p of products) {
       await pool.query(
@@ -2041,6 +2044,44 @@ export const createOrder = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Server error", error: err.message });
+  }
+};
+
+// import admin from "../utils/firebase.js"; // adjust path as needed
+
+import admin from "../../utils/firebase.js";
+
+export const testPushNotification = async (req, res) => {
+  try {
+    const { token, title, body, data = {} } = req.body;
+
+    if (!token || !title || !body) {
+      return res.status(400).json({
+        success: false,
+        message: "token, title, and body are required",
+      });
+    }
+
+    const message = {
+      token,
+      notification: { title, body },
+      data: Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, String(v)]),
+      ),
+    };
+
+    const response = await admin.messaging().send(message);
+
+    return res.status(200).json({
+      success: true,
+      message: "Push notification sent successfully",
+      fcm_response: response,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
@@ -2097,6 +2138,57 @@ export const createOrder = async (req, res) => {
 //   }
 // };
 
+// export const updateOrder = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+//     const { buyer_id, order_type, order_address, order_contact, products } =
+//       req.body;
+
+//     if (!id) return res.status(400).json({ message: "Order id is required" });
+
+//     // Check order exists
+//     const [existing] = await pool.query(`SELECT id FROM orders WHERE id = ?`, [
+//       id,
+//     ]);
+//     if (existing.length === 0)
+//       return res.status(404).json({ message: "Order not found" });
+
+//     await pool.query(
+//       `UPDATE orders SET buyer_id = ?, order_type = ?, order_address = ?, order_contact = ?, updated_at = NOW() WHERE id = ?`,
+//       [buyer_id, order_type, order_address, order_contact, id],
+//     );
+
+//     if (Array.isArray(products) && products.length > 0) {
+//       await pool.query(`DELETE FROM order_products WHERE order_id = ?`, [id]);
+
+//       for (const p of products) {
+//         await pool.query(
+//           `INSERT INTO order_products
+//              (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+//            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//           [
+//             id,
+//             p.product_id,
+//             p.seller_id,
+//             Number(p.quantity) || 1,
+//             Number(p.price),
+//             p.order_status || "New",
+//             p.payment_status || "Pending",
+//           ],
+//         );
+//       }
+//     }
+
+//     return res.status(200).json({ message: "Order updated successfully" });
+//   } catch (err) {
+//     console.error("Error updating order:", err);
+//     return res
+//       .status(500)
+//       .json({ message: "Server error", error: err.message });
+//   }
+// };
+
 export const updateOrder = async (req, res) => {
   try {
     const pool = await connectDB();
@@ -2117,6 +2209,10 @@ export const updateOrder = async (req, res) => {
       `UPDATE orders SET buyer_id = ?, order_type = ?, order_address = ?, order_contact = ?, updated_at = NOW() WHERE id = ?`,
       [buyer_id, order_type, order_address, order_contact, id],
     );
+
+    if (order_type) {
+      await sendOrderStatusNotification(buyer_id, id, order_type);
+    }
 
     if (Array.isArray(products) && products.length > 0) {
       await pool.query(`DELETE FROM order_products WHERE order_id = ?`, [id]);
@@ -2323,7 +2419,23 @@ export const updateOrderProductStatus = async (req, res) => {
       }
     }
 
+    // await conn.commit();
     await conn.commit();
+
+    // ── Notify buyer about this specific product's status change ──
+    const [[orderRow]] = await conn.query(
+      `SELECT buyer_id FROM orders WHERE id = ? LIMIT 1`,
+      [existing.order_id],
+    );
+    if (orderRow?.buyer_id) {
+      await sendOrderStatusNotification(
+        orderRow.buyer_id,
+        existing.order_id,
+        order_status,
+        existing.product_id,
+      );
+    }
+
     return res
       .status(200)
       .json({ message: "Order product status updated successfully" });

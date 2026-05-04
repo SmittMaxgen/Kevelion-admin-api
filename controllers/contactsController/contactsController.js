@@ -41,15 +41,39 @@ export const createContact = async (req, res) => {
 
       await client.sendTransacEmail({
         sender: {
-          email: "kevelion@gmail.com",
+          email: "kevelionb2b@gmail.com",
           name: "Kevelion",
         },
         to: [{ email: email, name: name }],
-        subject: "Contact Added Successfully",
+        // subject: "Contact Added Successfully",
+        // htmlContent: `
+        //   <h2>Hi ${name}!</h2>
+        //   <p>Your contact has been created successfully.</p>
+        //   <p><strong>Mobile:</strong> ${mobile}</p>
+        // `,
+        subject: "We Have Received Your Message",
         htmlContent: `
-          <h2>Hi ${name}!</h2>
-          <p>Your contact has been created successfully.</p>
-          <p><strong>Mobile:</strong> ${mobile}</p>
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <p>Hello ${name},</p>
+
+            <p>Thank you for contacting us. We have received your message successfully.</p>
+
+            <p>Our team will review your inquiry and get back to you as soon as possible.</p>
+
+            <h3>Your Submitted Details:</h3>
+            <p><strong>Name:</strong> ${name}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Mobile:</strong> ${mobile}</p>
+            <p><strong>Message:</strong> ${message || "N/A"}</p>
+
+            <p>We appreciate your interest in us.</p>
+
+            <br/>
+
+            <p>Best Regards,</p>
+            <p><strong>Kevelion</strong></p>
+            <p>www.kevelion.com</p>
+          </div>
         `,
       });
     } catch (mailErr) {
