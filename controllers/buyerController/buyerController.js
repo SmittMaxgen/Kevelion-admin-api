@@ -24,6 +24,7 @@ export const createBuyer = async (req, res) => {
       name,
       email,
       mobile,
+      address,
       password,
       image,
       status,
@@ -31,6 +32,7 @@ export const createBuyer = async (req, res) => {
       address_id,
       is_online,
       device_token,
+      fcm_token,
 
       company_name,
       company_GST_number,
@@ -109,10 +111,29 @@ export const createBuyer = async (req, res) => {
       hashedPassword = await bcrypt.hash(password, 10);
     }
     // Step 5: Insert main buyer record
+    // const [result] = await pool.query(
+    //   `INSERT INTO buyer
+    //   (name, mobile, email, password, image, status, approve_status, is_online, device_token,fcm_token)
+    //   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    //   [
+    //     name,
+    //     mobile,
+    //     email,
+    //     hashedPassword,
+    //     getFilePath(req, "image"),
+    //     status || "Inactive",
+    //     approve_status || "Pending",
+    //     address_id,
+    //     is_online ?? false,
+    //     device_token || "",
+    //     fcm_token || null,
+    //   ]
+    // );
+
     const [result] = await pool.query(
       `INSERT INTO buyer 
-      (name, mobile, email, password, image, status, approve_status, is_online, device_token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  (name, mobile, email, password, image, status, approve_status, is_online, device_token, fcm_token)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         mobile,
@@ -121,9 +142,9 @@ export const createBuyer = async (req, res) => {
         getFilePath(req, "image"),
         status || "Inactive",
         approve_status || "Pending",
-        address_id,
-        is_online ?? false,
-        device_token || "",
+        is_online ?? false, // ✅ is_online
+        device_token || "", // ✅ device_token
+        fcm_token || null,
       ],
     );
 

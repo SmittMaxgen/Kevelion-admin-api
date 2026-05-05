@@ -2419,23 +2419,7 @@ export const updateOrderProductStatus = async (req, res) => {
       }
     }
 
-    // await conn.commit();
     await conn.commit();
-
-    // ── Notify buyer about this specific product's status change ──
-    const [[orderRow]] = await conn.query(
-      `SELECT buyer_id FROM orders WHERE id = ? LIMIT 1`,
-      [existing.order_id],
-    );
-    if (orderRow?.buyer_id) {
-      await sendOrderStatusNotification(
-        orderRow.buyer_id,
-        existing.order_id,
-        order_status,
-        existing.product_id,
-      );
-    }
-
     return res
       .status(200)
       .json({ message: "Order product status updated successfully" });
@@ -2483,105 +2467,42 @@ export const getAllOrder = async (req, res) => {
 // =====================================================================
 //  GET ORDER BY ID
 // =====================================================================
-// export const getDataById = async (req, res) => {
-//   try {
-//     const pool = await connectDB();
-//     const { id } = req.params;
-
-//     if (!id) return res.status(400).json({ message: "Order id is required" });
-
-//     const [orders] = await pool.query(
-//       `
-//       SELECT o.id, o.order_type, o.created_at, o.updated_at,
-//              o.buyer_id,
-//              b.name  AS buyer_name,
-//              b.email AS buyer_email,
-//              b.mobile AS buyer_mobile,
-//                  o.order_address,
-//               o.order_contact
-//                        s.*
-
-//       FROM orders o
-//       LEFT JOIN buyer b ON o.buyer_id = b.id
-//       WHERE o.id = ?
-//     `,
-//       [id],
-//     );
-
-//     if (orders.length === 0)
-//       return res.status(404).json({ message: "Order not found" });
-
-//     await attachOrderDetails(pool, orders);
-//     return res.status(200).json(orders[0]);
-//   } catch (err) {
-//     console.error("Error fetching order:", err);
-//     return res
-//       .status(500)
-//       .json({ message: "Server error", error: err.message });
-//   }
-// };
-
 export const getDataById = async (req, res) => {
   try {
     const pool = await connectDB();
     const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({ message: "Order id is required" });
-    }
+    if (!id) return res.status(400).json({ message: "Order id is required" });
 
     const [orders] = await pool.query(
       `
-      SELECT 
-        o.id, o.order_type, o.created_at, o.updated_at,
-        o.buyer_id,
-        b.name  AS buyer_name,
-        b.email AS buyer_email,
-        b.mobile AS buyer_mobile,
-        o.order_address,
-        o.order_contact,
-
-        s.*  -- all shipping fields
-
+      SELECT o.id, o.order_type, o.created_at, o.updated_at,
+             o.buyer_id,
+             b.name  AS buyer_name,
+             b.email AS buyer_email,
+             b.mobile AS buyer_mobile,
+                 o.order_address,
+              o.order_contact
       FROM orders o
       LEFT JOIN buyer b ON o.buyer_id = b.id
-      LEFT JOIN shipping s ON o.id = s.order_id
-
       WHERE o.id = ?
-      `,
+    `,
       [id],
     );
 
-    if (orders.length === 0) {
+    if (orders.length === 0)
       return res.status(404).json({ message: "Order not found" });
-    }
 
-    const order = orders[0];
-
-    // ✅ Extract shipping dynamically (optional but recommended)
-    const shipping = {};
-    Object.keys(order).forEach((key) => {
-      if (key.startsWith("shipping_") || key === "order_id") {
-        shipping[key] = order[key];
-        delete order[key];
-      }
-    });
-
-    // attach shipping
-    order.shipping_details = shipping;
-
-    // existing logic
     await attachOrderDetails(pool, orders);
-
-    return res.status(200).json(order);
+    return res.status(200).json(orders[0]);
   } catch (err) {
     console.error("Error fetching order:", err);
-    return res.status(500).json({
-      message: "Server error",
-      error: err.message,
-    });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
+
 // =====================================================================
 //  GET ALL ORDERS BY BUYER
 // =====================================================================
