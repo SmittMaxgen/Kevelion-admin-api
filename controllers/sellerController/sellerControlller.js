@@ -883,17 +883,55 @@ export const verifyVendorPackagePayment = async (req, res) => {
     );
 
     // Activate subscription
+    // const [result] = await pool.query(
+    //   `INSERT INTO seller_packages_history
+    //     (seller_id, package_id, package_start_date, package_end_date, payment_id)
+    //    VALUES (?, ?, ?, ?, ?)`,
+    //   [
+    //     seller_id,
+    //     package_id,
+    //     package_start_date,
+    //     package_end_date,
+    //     razorpay_payment_id,
+    //   ],
+    // );
+
+    // ✅ Expire all previous active packages of this seller
+    await pool.query(
+      `UPDATE seller_packages_history 
+   SET status = 'Expired'
+   WHERE seller_id = ? AND status = 'Active'`,
+      [seller_id],
+    );
+
+    // ✅ Insert new active package
     const [result] = await pool.query(
       `INSERT INTO seller_packages_history
-        (seller_id, package_id, package_start_date, package_end_date, payment_id)
-       VALUES (?, ?, ?, ?, ?)`,
+    (
+      seller_id,
+      package_id,
+      package_start_date,
+      package_end_date,
+      payment_id,
+      status
+    )
+   VALUES (?, ?, ?, ?, ?, ?)`,
       [
         seller_id,
         package_id,
         package_start_date,
         package_end_date,
         razorpay_payment_id,
+        "Active",
       ],
+    );
+
+    // ✅ Update seller current package
+    await pool.query(
+      `UPDATE seller 
+   SET current_package_id = ?, subscription = 1
+   WHERE id = ?`,
+      [result.insertId, seller_id],
     );
 
     res.status(200).json({
