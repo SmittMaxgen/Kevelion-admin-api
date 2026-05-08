@@ -2019,23 +2019,73 @@ export const createOrder = async (req, res) => {
     console.log("orderId====>>>>", orderId);
     await sendOrderStatusNotification(buyer_id, orderId, "New");
 
+    // for (const p of products) {
+    //   await pool.query(
+    //     `INSERT INTO order_products
+    //        (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+    //      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    //     [
+    //       orderId,
+    //       p.product_id,
+    //       p.seller_id,
+    //       Number(p.quantity) || 1,
+    //       Number(p.price),
+    //       p.order_status || "New",
+    //       p.payment_status || "Pending",
+    //     ],
+    //   );
+    // }
+
     for (const p of products) {
+      const orderQty = Number(p.quantity) || 1;
+
+      // ✅ Check current stock
+      const [productRows] = await pool.query(
+        `SELECT quantity FROM product WHERE id = ?`,
+        [p.product_id],
+      );
+
+      if (productRows.length === 0) {
+        return res.status(404).json({
+          message: `Product not found`,
+          product_id: p.product_id,
+        });
+      }
+
+      const currentStock = Number(productRows[0].quantity) || 0;
+
+      // ✅ Prevent over-ordering
+      if (orderQty > currentStock) {
+        return res.status(400).json({
+          message: `Only ${currentStock} quantity available`,
+          product_id: p.product_id,
+        });
+      }
+
+      // ✅ Insert order product
       await pool.query(
         `INSERT INTO order_products
-           (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (order_id, product_id, seller_id, quantity, price, order_status, payment_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           p.product_id,
           p.seller_id,
-          Number(p.quantity) || 1,
+          orderQty,
           Number(p.price),
           p.order_status || "New",
           p.payment_status || "Pending",
         ],
       );
-    }
 
+      // ✅ Reduce product stock
+      await pool.query(
+        `UPDATE product
+     SET quantity = quantity - ?
+     WHERE id = ?`,
+        [orderQty, p.product_id],
+      );
+    }
     return res
       .status(201)
       .json({ message: "Order created successfully", order_id: orderId });

@@ -36,20 +36,36 @@ export const changeCartQty = async (req, res) => {
     let currentQty = itemRows[0].quantity;
 
     /* 3️⃣ Get product + MOQ */
+    // const [prod] = await pool.query(
+    //   `SELECT product_MRP, pricing_tiers, moq
+    //    FROM product WHERE id = ?`,
+    //   [product_id],
+    // );
+
     const [prod] = await pool.query(
-      `SELECT product_MRP, pricing_tiers, moq 
-       FROM product WHERE id = ?`,
+      `SELECT product_MRP, pricing_tiers, moq, quantity
+   FROM product WHERE id = ?`,
       [product_id],
     );
 
     const product = prod[0];
+    
     const price = Number(product.product_MRP);
     const MOQ = Number(product.moq) || 1;
+
+    const availableQty = Number(product.quantity) || 0;
 
     /* 4️⃣ Increase / Decrease */
     let newQty = currentQty;
 
     if (action === "increase") {
+      // ✅ Stop if stock limit reached
+      if (currentQty >= availableQty) {
+        return res.status(400).json({
+          message: `Only ${availableQty} quantity available in stock`,
+        });
+      }
+
       newQty += 1;
     } else if (action === "decrease") {
       if (currentQty <= MOQ) {
