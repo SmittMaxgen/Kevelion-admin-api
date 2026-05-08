@@ -153,7 +153,7 @@ export const addToCart = async (req, res) => {
 
     /* 2️⃣ Get product + MOQ */
     const [prod] = await pool.query(
-      `SELECT id, product_MRP, pricing_tiers, moq 
+      `SELECT id, product_MRP, pricing_tiers, moq, quantity
        FROM product WHERE id = ?`,
       [product_id],
     );
@@ -165,6 +165,7 @@ export const addToCart = async (req, res) => {
     const product = prod[0];
     const price = Number(product.product_MRP);
     const MOQ = Number(product.moq) || 1;
+    const availableQty = Number(product.quantity) || 0;
 
     /* 3️⃣ Check if already in cart */
     const [existingItem] = await pool.query(
@@ -177,6 +178,12 @@ export const addToCart = async (req, res) => {
       newQty = existingItem[0].quantity + quantity;
     } else {
       newQty = Math.max(quantity, MOQ); // FORCE MOQ on first add
+    }
+    // ✅ Prevent adding more than stock
+    if (newQty > availableQty) {
+      return res.status(400).json({
+        message: `Only ${availableQty} quantity available in stock`,
+      });
     }
 
     /* 4️⃣ Calculate tier price based on newQty */

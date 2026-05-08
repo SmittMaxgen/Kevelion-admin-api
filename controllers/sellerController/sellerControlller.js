@@ -310,18 +310,192 @@ const sellerCurrentPackageId = sellerPackageResult.insertId;
 };*/
 
 // ======================= GET ALL SELLERS ===========================
+// export const getAllSellers = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     // const [rows] = await pool.query(
+//     //   `SELECT s.id, s.name, s.email, s.mobile, s.status, s.approve_status,
+//     //   s.current_package_id,s.current_package_start,s.current_package_end,
+//     //    c.company_name, c.city, c.state, c.pincode
+//     //    FROM seller s
+//     //    LEFT JOIN seller_company_details c ON s.id = c.seller_id
+//     //    ORDER BY s.id DESC`,
+//     // );
+//     const [rows] = await pool.query(
+//       `SELECT
+//       s.id,
+//       s.name,
+//       s.email,
+//       s.mobile,
+//       s.status,
+//       s.approve_status,
+//       s.device_token,
+//       s.join_date,
+//       s.subscription,
+//       s.current_package_id,
+//       s.current_package_start,
+//       s.current_package_end,
+//       s.created_at,
+//       s.updated_at,
+//       s.address,
+
+//       c.company_name,
+//       c.city,
+//       c.state,
+//       c.pincode
+
+//    FROM seller s
+//    LEFT JOIN seller_company_details c
+//      ON s.id = c.seller_id
+
+//    ORDER BY s.id DESC`,
+//     );
+//     res.status(200).json(rows);
+//   } catch (err) {
+//     console.error("Error fetching sellers:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
 export const getAllSellers = async (req, res) => {
   try {
     const pool = await connectDB();
-    const [rows] = await pool.query(
-      `SELECT s.id, s.name, s.email, s.mobile, s.status, s.approve_status, 
-      s.current_package_id,s.current_package_start,s.current_package_end,
-       c.company_name, c.city, c.state, c.pincode 
-       FROM seller s 
-       LEFT JOIN seller_company_details c ON s.id = c.seller_id
-       ORDER BY s.id DESC`,
-    );
-    res.status(200).json(rows);
+
+    const [rows] = await pool.query(`
+      SELECT 
+        s.id,
+        s.name,
+        s.mobile,
+        s.email,
+        s.password,
+        s.status,
+        s.approve_status,
+        s.device_token,
+        s.join_date,
+        s.subscription,
+        s.current_package_id,
+        s.current_package_start,
+        s.current_package_end,
+        s.created_at,
+        s.updated_at,
+        s.otp_code,
+        s.otp_expiry,
+        s.address,
+
+        c.id AS company_id,
+        c.seller_id AS company_seller_id,
+        c.company_name,
+        c.company_type,
+        c.company_GST_number,
+        c.company_logo,
+        c.company_website,
+        c.IEC_code,
+        c.annual_turnover,
+        c.facebook_link,
+        c.linkedin_link,
+        c.insta_link,
+        c.city,
+        c.state,
+        c.pincode,
+        c.created_at AS company_created_at,
+        c.updated_at AS company_updated_at,
+
+        k.id AS kyc_id,
+        k.seller_id AS kyc_seller_id,
+        k.aadhar_number,
+        k.aadhar_front,
+        k.aadhar_back,
+        k.company_registration,
+        k.company_pan_card,
+        k.gst_certificate,
+
+        b.id AS bank_id,
+        b.seller_id AS bank_seller_id,
+        b.cancelled_cheque_photo,
+        b.bank_name,
+        b.bank_IFSC_code,
+        b.account_number,
+        b.account_type
+
+      FROM seller s
+
+      LEFT JOIN seller_company_details c 
+        ON s.id = c.seller_id
+
+      LEFT JOIN seller_kyc_details k
+        ON s.id = k.seller_id
+
+      LEFT JOIN seller_bank_details b
+        ON s.id = b.seller_id
+
+      ORDER BY s.id DESC
+    `);
+
+    const formattedData = rows.map((row) => ({
+      seller: {
+        id: row.id,
+        name: row.name,
+        mobile: row.mobile,
+        email: row.email,
+        password: row.password,
+        status: row.status,
+        approve_status: row.approve_status,
+        device_token: row.device_token,
+        join_date: row.join_date,
+        subscription: row.subscription,
+        current_package_id: row.current_package_id,
+        current_package_start: row.current_package_start,
+        current_package_end: row.current_package_end,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        otp_code: row.otp_code,
+        otp_expiry: row.otp_expiry,
+        address: row.address,
+      },
+
+      company: {
+        id: row.company_id,
+        seller_id: row.company_seller_id,
+        company_name: row.company_name,
+        company_type: row.company_type,
+        company_GST_number: row.company_GST_number,
+        company_logo: row.company_logo,
+        company_website: row.company_website,
+        IEC_code: row.IEC_code,
+        annual_turnover: row.annual_turnover,
+        facebook_link: row.facebook_link,
+        linkedin_link: row.linkedin_link,
+        insta_link: row.insta_link,
+        city: row.city,
+        state: row.state,
+        pincode: row.pincode,
+        created_at: row.company_created_at,
+        updated_at: row.company_updated_at,
+      },
+
+      kyc: {
+        id: row.kyc_id,
+        seller_id: row.kyc_seller_id,
+        aadhar_number: row.aadhar_number,
+        aadhar_front: row.aadhar_front,
+        aadhar_back: row.aadhar_back,
+        company_registration: row.company_registration,
+        company_pan_card: row.company_pan_card,
+        gst_certificate: row.gst_certificate,
+      },
+
+      bank: {
+        id: row.bank_id,
+        seller_id: row.bank_seller_id,
+        cancelled_cheque_photo: row.cancelled_cheque_photo,
+        bank_name: row.bank_name,
+        bank_IFSC_code: row.bank_IFSC_code,
+        account_number: row.account_number,
+        account_type: row.account_type,
+      },
+    }));
+
+    res.status(200).json(formattedData);
   } catch (err) {
     console.error("Error fetching sellers:", err);
     res.status(500).json({ message: "Server error" });

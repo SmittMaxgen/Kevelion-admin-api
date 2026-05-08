@@ -2375,6 +2375,8 @@ export const updateOrderProductStatus = async (req, res) => {
       "Out for Delivery",
       "Delivered",
       "Cancelled",
+        "Returned",
+
     ];
     if (!VALID_ORDER_STATUSES.includes(order_status)) {
       await conn.rollback();
