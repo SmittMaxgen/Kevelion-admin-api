@@ -49,7 +49,7 @@ export const changeCartQty = async (req, res) => {
     );
 
     const product = prod[0];
-    
+
     const price = Number(product.product_MRP);
     const MOQ = Number(product.moq) || 1;
 
@@ -701,6 +701,85 @@ export const updateCart = async (req, res) => {
 
 //======================GET CART BY ID ==========================
 
+// export const getCartById = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { id } = req.params;
+
+//     // Fetch cart
+//     const [cart] = await pool.query(`SELECT * FROM buyer_cart WHERE id = ?`, [
+//       id,
+//     ]);
+
+//     if (cart.length === 0) {
+//       return res.status(404).json({ message: "Cart not found" });
+//     }
+
+//     // Fetch cart items (should be only one)
+//     const [cartItem] = await pool.query(
+//       `SELECT c.*,
+//         p.name, p.sku, p.product_MRP, p.pricing_tiers, p.detail, p.brand,
+//         p.material, p.specification, p.warranty, p.seller_id, p.status AS product_status,
+//         s.name AS seller_name, s.mobile AS seller_phone
+//        FROM cart_item c
+//        LEFT JOIN product p ON c.product_id = p.id
+//        LEFT JOIN seller s ON p.seller_id = s.id
+//        WHERE c.cart_id = ?
+//        LIMIT 1`,
+//       [id],
+//     );
+
+//     if (cartItem.length === 0) {
+//       return res.status(404).json({ message: "No product found in cart" });
+//     }
+
+//     const item = cartItem[0];
+
+//     // Fetch buyer
+//     const [buyer] = await pool.query(
+//       `SELECT id AS buyer_id, name AS buyer_name, email AS buyer_email, mobile AS buyer_mobile
+//        FROM buyer WHERE id = ?`,
+//       [item.buyer_id],
+//     );
+
+//     // FINAL RESPONSE EXACTLY LIKE createCart
+//     res.status(200).json({
+//       status: "success",
+//       data: {
+//         id: cart[0].id,
+//         cart_type: "Cart",
+//         total_amount: item.total_amount,
+//         discount_amount: item.discount_amount,
+//         final_amount: item.final_amount,
+
+//         product: {
+//           product_id: item.product_id,
+//           name: item.name,
+//           sku: item.sku,
+//           quantity: item.quantity,
+//           price: item.price,
+//           discounted_price: item.discounted_price,
+//           detail: item.detail,
+//           product_MRP: item.product_MRP,
+//           pricing_tiers: item.pricing_tiers,
+//           brand: item.brand,
+//           material: item.material,
+//           specification: item.specification,
+//           warranty: item.warranty,
+//           seller_details: {
+//             seller_name: item.seller_name,
+//             seller_phone: item.seller_phone,
+//           },
+//         },
+
+//         buyer_details: buyer[0],
+//       },
+//     });
+//   } catch (err) {
+//     console.error("Error fetching cart:", err);
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
 export const getCartById = async (req, res) => {
   try {
     const pool = await connectDB();
@@ -718,8 +797,10 @@ export const getCartById = async (req, res) => {
     // Fetch cart items (should be only one)
     const [cartItem] = await pool.query(
       `SELECT c.*, 
-        p.name, p.sku, p.product_MRP, p.pricing_tiers, p.detail, p.brand, 
-        p.material, p.specification, p.warranty, p.seller_id, p.status AS product_status,
+        p.id AS product_id_ref, p.name, p.sku, p.product_MRP, p.pricing_tiers, 
+        p.detail, p.brand, p.material, p.specification, p.warranty, 
+        p.seller_id, p.gst, p.f_image, p.image_2, p.image_3, p.image_4,
+        p.moq, p.quantity AS stock_quantity,
         s.name AS seller_name, s.mobile AS seller_phone
        FROM cart_item c
        LEFT JOIN product p ON c.product_id = p.id
@@ -739,47 +820,67 @@ export const getCartById = async (req, res) => {
     const [buyer] = await pool.query(
       `SELECT id AS buyer_id, name AS buyer_name, email AS buyer_email, mobile AS buyer_mobile
        FROM buyer WHERE id = ?`,
-      [item.buyer_id],
+      [cart[0].buyer_id],
     );
 
-    // FINAL RESPONSE EXACTLY LIKE createCart
+    // FINAL RESPONSE
     res.status(200).json({
       status: "success",
-      data: {
-        id: cart[0].id,
-        cart_type: "Cart",
-        total_amount: item.total_amount,
-        discount_amount: item.discount_amount,
-        final_amount: item.final_amount,
-
-        product: {
-          product_id: item.product_id,
-          name: item.name,
-          sku: item.sku,
-          quantity: item.quantity,
-          price: item.price,
-          discounted_price: item.discounted_price,
-          detail: item.detail,
-          product_MRP: item.product_MRP,
-          pricing_tiers: item.pricing_tiers,
-          brand: item.brand,
-          material: item.material,
-          specification: item.specification,
-          warranty: item.warranty,
-          seller_details: {
-            seller_name: item.seller_name,
-            seller_phone: item.seller_phone,
-          },
+      data: [
+        {
+          id: cart[0].id,
+          cart_type: "Cart",
+          created_at: cart[0].created_at,
+          updated_at: cart[0].updated_at,
+          products: [
+            {
+              id: item.id,
+              quantity: item.quantity,
+              price: item.price,
+              discounted_price: item.discounted_price,
+              total_amount: item.total_amount,
+              discount_amount: item.discount_amount,
+              final_amount: item.final_amount,
+              gst_percentage: item.gst,
+              gst_amount: item.gst_amount,
+              gst_final_amount: item.gst_final_amount,
+              status: item.status,
+              product_details: {
+                id: item.product_id_ref,
+                seller_id: item.seller_id,
+                name: item.name,
+                sku: item.sku,
+                detail: item.detail,
+                product_MRP: item.product_MRP,
+                pricing_tiers: item.pricing_tiers,
+                brand: item.brand,
+                material: item.material,
+                specification: item.specification,
+                warranty: item.warranty,
+                gst: item.gst,
+                moq: item.moq, // ✅ NEW
+                quantity: item.stock_quantity, // ✅ NEW
+                f_image: item.f_image,
+                image_2: item.image_2,
+                image_3: item.image_3,
+                image_4: item.image_4,
+              },
+              seller_details: {
+                seller_name: item.seller_name,
+                seller_phone: item.seller_phone,
+              },
+            },
+          ],
+          buyer_details: buyer[0],
         },
-
-        buyer_details: buyer[0],
-      },
+      ],
     });
   } catch (err) {
     console.error("Error fetching cart:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 /*
 //=========================== GET CART BY ID======================================
 export const getCartById = async (req, res) => {

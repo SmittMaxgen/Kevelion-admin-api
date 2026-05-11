@@ -115,14 +115,26 @@ export const sendOrderStatusNotification = async (
     const data = messages[status] || messages["New"];
 
     // Save DB Notification
-    await createNotification(buyerId, orderId, data.title, data.body, status);
+    // await createNotification(buyerId, orderId, data.title, data.body, status);
+
+    const notificationId = await createNotification(
+      buyerId,
+      orderId,
+      data.title,
+      data.body,
+      status,
+    );
 
     // Push Notification
     if (token) {
       await sendPushToUser(buyerId, data.title, data.body, {
+        // type: "order",
+        // order_id: String(orderId),
+        // status,
         type: "order",
         order_id: String(orderId),
         status,
+        notification_id: String(notificationId),
         ...(productId && { product_id: String(productId) }),
       });
     }

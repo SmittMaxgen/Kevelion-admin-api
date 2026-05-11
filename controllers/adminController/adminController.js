@@ -6,23 +6,35 @@ export const createAdmin = async (req, res) => {
   try {
     const pool = await connectDB();
 
+    // const {
+    //   name,
+    //   mobile,
+    //   email,
+    //   password,
+    //   status = "Inactive",
+    //   device_token,
+    // } = req.body;
+
     const {
       name,
-      mobile,
       email,
       password,
       status = "Inactive",
       device_token,
     } = req.body;
-
+    
     if (!email || !password) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     // Check if email or mobile already exists
+    // const [existing] = await pool.query(
+    //   "SELECT * FROM admins WHERE email = ? OR mobile = ?",
+    //   [email, mobile],
+    // );
     const [existing] = await pool.query(
-      "SELECT * FROM admins WHERE email = ? OR mobile = ?",
-      [email, mobile],
+      "SELECT * FROM admins WHERE email = ?",
+      [email],
     );
 
     // if (existing.length > 0) {
