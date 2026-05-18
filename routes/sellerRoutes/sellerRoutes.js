@@ -18,6 +18,8 @@ import {
   createVendorPackage,
   deleteVendorPackage,
   verifyVendorPackagePayment,
+  changeSellerPassword,
+  forgotSellerPassword,
 } from "../../controllers/sellerController/sellerControlller.js";
 import { upload } from "../../middlewares/upload.js";
 
@@ -86,6 +88,12 @@ router.post("/seller/renew-package", renewOrUpgradePackage);
 
 // seller login
 router.post("/seller-login", sellerLogin);
+
+// seller change password
+router.patch("/seller/:id/change-password", changeSellerPassword);
+
+// seller forgot password
+router.patch("/seller/forgot-password", forgotSellerPassword);
 
 // send login otp
 router.post("/seller/login/send-otp", sendLoginOtp);

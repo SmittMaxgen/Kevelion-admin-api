@@ -2375,8 +2375,7 @@ export const updateOrderProductStatus = async (req, res) => {
       "Out for Delivery",
       "Delivered",
       "Cancelled",
-        "Returned",
-
+      "Returned",
     ];
     if (!VALID_ORDER_STATUSES.includes(order_status)) {
       await conn.rollback();
@@ -2545,8 +2544,55 @@ export const getDataById = async (req, res) => {
     if (orders.length === 0)
       return res.status(404).json({ message: "Order not found" });
 
+    // await attachOrderDetails(pool, orders);
     await attachOrderDetails(pool, orders);
+
+    // ─── TEMP: inject dummy shipping_details where null (remove after testing) ───
+    if (orders[0]?.products) {
+      const dummyShipping = {
+        courier_name: "Blue Dart",
+        courier_company: "Blue Dart Express Ltd.",
+        tracking_id: "BD123456789IN",
+        tracking_url: "https://www.bluedart.com/tracking/BD123456789IN",
+        dispatch_date: "2026-05-14T10:30:00.000Z",
+        expected_delivery_date: "2026-05-17T18:00:00.000Z",
+        weight_kg: 2.5,
+        origin: {
+          name: "Mamta Warehouse",
+          address: "Plot No. 12, GIDC Industrial Area",
+          city: "Rajkot",
+          state: "Gujarat",
+          pincode: "360002",
+          phone: "7867877867",
+        },
+        destination: {
+          name: "Jay",
+          address: "rajkot.",
+          city: "Rajkot",
+          state: "Gujarat",
+          pincode: "360001",
+          phone: "9313096952",
+        },
+        status_timeline: [
+          { status: "Order Picked Up", timestamp: "2026-05-14T10:30:00.000Z" },
+          {
+            status: "In Transit - Rajkot",
+            timestamp: "2026-05-14T15:00:00.000Z",
+          },
+          { status: "Out for Delivery", timestamp: "2026-05-15T09:00:00.000Z" },
+        ],
+      };
+
+      orders[0].products = orders[0].products.map((p) => ({
+        ...p,
+        shipping_details: p.shipping_details ?? dummyShipping,
+      }));
+    }
+    // ─────────────────────────────────────────────────────────────────────────────
+
     return res.status(200).json(orders[0]);
+
+    // return res.status(200).json(orders[0]);
   } catch (err) {
     console.error("Error fetching order:", err);
     return res

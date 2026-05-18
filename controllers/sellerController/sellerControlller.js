@@ -1394,6 +1394,151 @@ export const sellerLogin = async (req, res) => {
   }
 };
 
+// ======================= CHANGE PASSWORD ===========================
+export const changeSellerPassword = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { id } = req.params;
+    const { old_password, new_password, confirm_password } = req.body;
+
+    // ── 1. Input validation ──────────────────────────────────────────
+    if (!old_password || !new_password || !confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "old_password, new_password, and confirm_password are required.",
+      });
+    }
+
+    if (new_password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 8 characters long.",
+      });
+    }
+
+    if (new_password !== confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message: "new_password and confirm_password do not match.",
+      });
+    }
+
+    if (old_password === new_password) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from the current password.",
+      });
+    }
+
+    // ── 2. Fetch seller ──────────────────────────────────────────────
+    const [sellerRows] = await pool.query(
+      "SELECT id, password FROM seller WHERE id = ?",
+      [id],
+    );
+
+    if (sellerRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found.",
+      });
+    }
+
+    const seller = sellerRows[0];
+
+    // ── 3. Verify old password ───────────────────────────────────────
+    const isMatch = await bcrypt.compare(old_password, seller.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Current password is incorrect.",
+      });
+    }
+
+    // ── 4. Hash & update ─────────────────────────────────────────────
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    await pool.query(
+      "UPDATE seller SET password = ?, updated_at = NOW() WHERE id = ?",
+      [hashedPassword, id],
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password changed successfully.",
+    });
+  } catch (err) {
+    console.error("❌ Error changing seller password:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error.",
+      error: err.message,
+    });
+  }
+};
+
+// ======================= FORGOT PASSWORD (Direct) ===========================
+export const forgotSellerPassword = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { email, new_password, confirm_password } = req.body;
+
+    // ── 1. Input validation ──────────────────────────────────────────
+    if (!email || !new_password || !confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message: "email, new_password, and confirm_password are required.",
+      });
+    }
+
+    if (new_password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 8 characters long.",
+      });
+    }
+
+    if (new_password !== confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message: "new_password and confirm_password do not match.",
+      });
+    }
+
+    // ── 2. Check email exists ────────────────────────────────────────
+    const [sellerRows] = await pool.query(
+      "SELECT id FROM seller WHERE email = ?",
+      [email],
+    );
+
+    if (sellerRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No seller account found with this email.",
+      });
+    }
+
+    // ── 3. Hash & update ─────────────────────────────────────────────
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    await pool.query(
+      "UPDATE seller SET password = ?, updated_at = NOW() WHERE email = ?",
+      [hashedPassword, email],
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully.",
+    });
+  } catch (err) {
+    console.error("❌ Error in forgot password:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error.",
+      error: err.message,
+    });
+  }
+};
 /*export const updateSeller = async (req, res) => {
   try {
     const pool = await connectDB();

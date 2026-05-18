@@ -14,14 +14,22 @@ export const createNotification = async (
   try {
     const pool = await connectDB();
 
-    await pool.query(
+    // await pool.query(
+    //   `INSERT INTO notifications
+    //   (buyer_id, order_id, type, title, message, status)
+    //   VALUES (?, ?, 'order', ?, ?, ?)`,
+    //   [buyer_id, order_id, title, message, status],
+    // );
+
+    // return true;
+    const [result] = await pool.query(
       `INSERT INTO notifications
       (buyer_id, order_id, type, title, message, status)
       VALUES (?, ?, 'order', ?, ?, ?)`,
       [buyer_id, order_id, title, message, status],
     );
 
-    return true;
+    return result.insertId;
   } catch (error) {
     console.error("Create Notification Error:", error);
     return false;
