@@ -1821,16 +1821,18 @@ const attachOrderDetails = async (pool, orders) => {
     order.total_final_amount = total_final_amount;
 
     order.buyer_details = {
-      buyer_id: order.buyer_id ?? null,
-      buyer_name: order.buyer_name ?? null,
-      buyer_email: order.buyer_email ?? null,
-      buyer_mobile: order.buyer_mobile ?? null,
+      id: order.buyer_id ?? null,
+      name: order.buyer_name ?? null,
+      email: order.buyer_email ?? null,
+      mobile: order.buyer_mobile ?? null,
+      address: order.buyer_address ?? null,
     };
 
     delete order.buyer_id;
     delete order.buyer_name;
     delete order.buyer_email;
     delete order.buyer_mobile;
+    delete order.buyer_address; // changed
   }
 
   return orders;
@@ -2498,6 +2500,7 @@ export const getAllOrder = async (req, res) => {
              b.name  AS buyer_name,
              b.email AS buyer_email,
              b.mobile AS buyer_mobile,
+             b.address AS buyer_address,
               o.order_address,
               o.order_contact
       FROM orders o
