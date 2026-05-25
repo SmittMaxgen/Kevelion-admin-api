@@ -11,6 +11,7 @@ import {
   getAllCompanyById,
   getBuyerByMobile,
   changePassword,
+  sendOTP,
 } from "../../controllers/buyerController/buyerController.js";
 import { upload } from "../../middlewares/upload.js";
 
@@ -42,6 +43,7 @@ const handleFileUpload = (req, res, next) => {
 
 // Routes
 router.post("/buyer", handleFileUpload, createBuyer);
+router.post("/send-otp", sendOTP);
 router.put("/buyer/change-password", changePassword);
 
 router.get("/buyers", getAllBuyers);

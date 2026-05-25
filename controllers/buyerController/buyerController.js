@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import { connectDB } from "../../connection/db.js";
-
+import axios from "axios";
 // Helper to get uploaded file path safely
 const getFilePath = (req, field) =>
   req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : "";
@@ -195,6 +195,54 @@ export const createBuyer = async (req, res) => {
   } catch (err) {
     console.error("Error creating buyer:", err);
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const sendOTP = async (req, res) => {
+  try {
+    const { mobile, otp } = req.body;
+
+    if (!mobile || !otp) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Mobile and OTP are required" });
+    }
+
+    if (mobile.length !== 10) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid mobile number" });
+    }
+
+    const fullNumber = `91${mobile}`;
+
+    // ✅ EXACT template text - word by word same
+    const message = `Dear User, Your One-Time Password (OTP) for Kevelion is: ${otp} This OTP is valid for 5 minutes. Please do not share this code with anyone for security reasons. If you did not request this OTP, please ignore this email or contact our support team. Regards, KEVELION Team`;
+
+    const url = `https://www.smsgatewayhub.com/api/mt/SendSMS?APIKey=2qORFAO7NUC6nxt4yrNJbQ&senderid=KVLION&channel=2&DCS=0&flashsms=0&number=${fullNumber}&text=${encodeURIComponent(message)}&route=1&EntityId=1701177884019429796&dlttemplateid=1707177943571547108`;
+
+    const response = await axios.get(url);
+
+    console.log("SMS Raw Response:", JSON.stringify(response.data));
+
+    if (response.data?.ErrorCode === "000") {
+      return res
+        .status(200)
+        .json({ success: true, message: "OTP sent successfully" });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Failed to send OTP",
+        debug: response.data,
+      });
+    }
+  } catch (error) {
+    console.error("SMS Error:", error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      message: "SMS sending failed",
+      debug: error.response?.data || error.message,
+    });
   }
 };
 
