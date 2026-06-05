@@ -894,12 +894,16 @@ export const getAllProducts = async (req, res) => {
     s.name AS seller_name,
     c.name AS color_name,
     f.name AS finish_name,
-    m.name AS material_name
+    m.name AS material_name,
+    cat.category_name,
+    sub.subcategory_name
   FROM product p
   LEFT JOIN seller s ON s.id = p.seller_id
   LEFT JOIN color_master c ON c.id = p.color_id
   LEFT JOIN finish_master f ON f.id = p.finish_id
   LEFT JOIN material_master m ON m.id = p.material_id
+  LEFT JOIN product_category cat ON cat.id = p.cat_id
+  LEFT JOIN product_subcategory sub ON sub.id = p.cat_sub_id
   ${whereClause}
   ORDER BY p.id DESC
 `,
@@ -944,6 +948,8 @@ export const getAllFeaturedProducts = async (req, res) => {
         p.*,
 
         w.id AS wishlist_id,
+        cat.category_name,
+        sub.subcategory_name,
 
         COUNT(DISTINCT pr.id) AS total_reviews,
         COALESCE(AVG(pr.rating), 0) AS avg_rating
@@ -956,6 +962,8 @@ export const getAllFeaturedProducts = async (req, res) => {
 
       LEFT JOIN product_reviews pr
         ON pr.product_id = p.id
+      LEFT JOIN product_category cat ON cat.id = p.cat_id
+      LEFT JOIN product_subcategory sub ON sub.id = p.cat_sub_id
 
       WHERE p.featured = 'Yes'
 
@@ -1389,6 +1397,8 @@ export const getProductsBySubCategory = async (req, res) => {
         c.name AS color_name,
         f.name AS finish_name,
         m.name AS material_name,
+        cat.category_name,
+        sub.subcategory_name,
 
         w.id AS wishlist_id,
 
@@ -1401,6 +1411,8 @@ export const getProductsBySubCategory = async (req, res) => {
       LEFT JOIN color_master c ON c.id = p.color_id
       LEFT JOIN finish_master f ON f.id = p.finish_id
       LEFT JOIN material_master m ON m.id = p.material_id
+      LEFT JOIN product_category cat ON cat.id = p.cat_id
+      LEFT JOIN product_subcategory sub ON sub.id = p.cat_sub_id
 
       LEFT JOIN wishlist w 
         ON w.product_id = p.id

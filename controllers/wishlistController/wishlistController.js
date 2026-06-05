@@ -21,12 +21,10 @@ export const createWishlist = async (req, res) => {
 
     const wishlistId = wishlistResult.insertId;
 
-    res
-      .status(201)
-      .json({
-        message: "Wishlist created successfully",
-        wishlist_id: wishlistId,
-      });
+    res.status(201).json({
+      message: "Wishlist created successfully",
+      wishlist_id: wishlistId,
+    });
   } catch (err) {
     console.error("Error creating Wishlist:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -123,6 +121,10 @@ export const getAllWishlistByBuyer = async (req, res) => {
         p.quantity,
         p.status,
         p.seller_id,
+        p.cat_id,
+        p.cat_sub_id,
+        cat.category_name,
+        sub.subcategory_name,
 
         IFNULL(r.total_reviews, 0) AS total_reviews,
         IFNULL(r.avg_rating, 0) AS avg_rating
@@ -131,6 +133,8 @@ export const getAllWishlistByBuyer = async (req, res) => {
 
       LEFT JOIN product p 
         ON w.product_id = p.id
+      LEFT JOIN product_category cat ON cat.id = p.cat_id
+      LEFT JOIN product_subcategory sub ON sub.id = p.cat_sub_id
 
       LEFT JOIN (
         SELECT 
