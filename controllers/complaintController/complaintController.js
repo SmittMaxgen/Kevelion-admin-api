@@ -3,21 +3,22 @@ import { connectDB } from "../../connection/db.js";
 // ======================= CREATE COMPLAINT =======================
 export const createComplaint = async (req, res) => {
   try {
-    const { order_product_id, complaint } = req.body;
+    const { order_id, order_product_id, complaint } = req.body;
 
-    if (!order_product_id || !complaint) {
+    if (!order_id || !order_product_id || !complaint) {
       return res.status(400).json({
         success: false,
-        message: "order_product_id and complaint are required",
+        message: "order_id, order_product_id and complaint are required",
       });
     }
 
     const db = await connectDB();
 
     const [result] = await db.execute(
-      `INSERT INTO order_complaint (order_product_id, complaint)
-       VALUES (?, ?)`,
-      [order_product_id, complaint],
+      `INSERT INTO order_complaint
+       (order_id, order_product_id, complaint)
+       VALUES (?, ?, ?)`,
+      [order_id, order_product_id, complaint],
     );
 
     res.status(201).json({
@@ -27,18 +28,21 @@ export const createComplaint = async (req, res) => {
     });
   } catch (error) {
     console.error("Create Complaint Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
-
 // ======================= GET ALL COMPLAINTS =======================
 export const getAllComplaints = async (req, res) => {
   try {
     const db = await connectDB();
 
     const [rows] = await db.execute(`
-      SELECT 
+      SELECT
         oc.id,
+        oc.order_id,
         oc.order_product_id,
         oc.complaint,
         oc.status,
@@ -55,16 +59,16 @@ export const getAllComplaints = async (req, res) => {
 
       FROM order_complaint oc
 
-      LEFT JOIN order_products op 
+      LEFT JOIN orders o
+        ON oc.order_id = o.id
+
+      LEFT JOIN order_products op
         ON oc.order_product_id = op.id
 
-      LEFT JOIN orders o 
-        ON op.order_id = o.id
-
-      LEFT JOIN seller s 
+      LEFT JOIN seller s
         ON op.seller_id = s.id
 
-      LEFT JOIN buyer b 
+      LEFT JOIN buyer b
         ON o.buyer_id = b.id
 
       ORDER BY oc.created_at DESC

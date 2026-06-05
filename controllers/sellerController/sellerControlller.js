@@ -58,8 +58,8 @@ export const createSeller = async (req, res) => {
       account_type,
     } = bodyData;
 
-    if (!name || !mobile || !email || !password)
-      return res.status(400).json({ message: "Missing required fields" });
+    if (!email || !password)
+      return res.status(400).json({ message: "email and password are required fields" });
 
     const [existingSeller] = await pool.query(
       "SELECT id FROM seller WHERE email = ? OR mobile = ?",
