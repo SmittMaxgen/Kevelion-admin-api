@@ -11,6 +11,7 @@ import {
   updateOrderProductStatus,
   getAllOrderOrdertype,
   testPushNotification,
+  generateOrderInvoice,
 } from "../../controllers/orderController/orderController.js";
 
 const router = Router();
@@ -31,6 +32,9 @@ router.get("/orderbuyer/:buyer_id", getAllOrderByBuyer);
 router.get("/orderseller/:seller_id", getAllOrderBySeller);
 
 router.get("/order/:id", getDataById);
+
+router.get("/order/:orderId/invoice", generateOrderInvoice);
+
 router.delete("/order/:id", deleteOrder);
 
 export default router;
