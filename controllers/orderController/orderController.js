@@ -2670,23 +2670,27 @@ export const generateOrderInvoice = async (req, res) => {
     let y = 40;
 
     // ==================== HEADER ====================
-    doc.fontSize(22).fillColor("#1a3c6e").text("KEVELION", 40, y);
-    y += 26;
-    doc.fontSize(9).fillColor("#888").text("B2B E-Commerce Platform", 40, y);
-
+    // doc.fontSize(22).fillColor("#1a3c6e").text("KEVELION", 40, y);
     const sellerNames = [
       ...new Set(products.map((p) => p.seller_name).filter(Boolean)),
     ].join(", ");
+    doc
+      .fontSize(22)
+      .fillColor("#1a3c6e")
+      .text(`${sellerNames ? `${sellerNames}` : ""}`, 40, y);
+    y += 26;
+    doc.fontSize(9).fillColor("#888").text("B2B E-Commerce Platform", 40, y);
+
     const sellerPhones = [
       ...new Set(products.map((p) => p.seller_phone).filter(Boolean)),
     ].join(", ");
 
     y += 12;
-    doc
-      .fontSize(8)
-      .fillColor("#444")
-      .text(`Seller Name: ${sellerNames}`, 40, y);
-    y += 10;
+    // doc
+    //   .fontSize(8)
+    //   .fillColor("#444")
+    //   .text(`Seller Name: ${sellerNames}`, 40, y);
+    // y += 10;
     doc.fontSize(8).fillColor("#444").text(`Contact: ${sellerPhones}`, 40, y);
 
     doc
@@ -2768,12 +2772,7 @@ export const generateOrderInvoice = async (req, res) => {
       order.order_contact ? `Contact: ${order.order_contact}` : "",
     ]);
 
-    drawBox(436, 119, "PAYMENT", [
-      "Status:",
-      products[0]?.payment_status || "Pending",
-      "Total:",
-      `Rs. ${totalFinal.toFixed(2)}`,
-    ]);
+    drawBox(436, 119, "PAYMENT", ["Total:", `Rs. ${totalFinal.toFixed(2)}`]);
 
     y += boxHeight + 25;
 
@@ -2831,11 +2830,11 @@ export const generateOrderInvoice = async (req, res) => {
         lineGap: 1,
       });
 
-      doc
-        .font("Helvetica")
-        .fontSize(7)
-        .fillColor("#555")
-        .text(p.seller_name || "-", 68, y + 23, { width: 160, ellipsis: true });
+      // doc
+      //   .font("Helvetica")
+      //   .fontSize(7)
+      //   .fillColor("#555")
+      //   .text(p.seller_name || "-", 68, y + 23, { width: 160, ellipsis: true });
 
       // Other columns
       doc.fontSize(8).fillColor("#111");
@@ -2923,7 +2922,7 @@ export const generateOrderInvoice = async (req, res) => {
       .fontSize(7.5)
       .fillColor("#666")
       .text("* Computer-generated invoice. All amounts in INR.", 40, y + 8)
-      .text("* For queries contact: adminapi.kevelion.com", 40, y + 19);
+      .text("* For queries contact: kevelion.com", 40, y + 19);
 
     doc
       .fontSize(8)
