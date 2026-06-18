@@ -1948,6 +1948,7 @@ export const createOrder = async (req, res) => {
       order_type = "Order",
       order_address,
       order_contact,
+      shipment_cost = 0,
       products,
     } = req.body;
 
@@ -2014,8 +2015,14 @@ export const createOrder = async (req, res) => {
     const pool = await connectDB();
 
     const [orderResult] = await pool.query(
-      `INSERT INTO orders (buyer_id, order_type, order_address, order_contact) VALUES (?, ?, ?, ?)`,
-      [buyer_id, order_type, order_address, order_contact],
+      `INSERT INTO orders (buyer_id, order_type, order_address, order_contact, shipment_cost) VALUES (?, ?, ?, ?, ?)`,
+      [
+        buyer_id,
+        order_type,
+        order_address,
+        order_contact,
+        Number(shipment_cost),
+      ],
     );
     const orderId = orderResult.insertId;
     console.log("orderId====>>>>", orderId);
@@ -2502,7 +2509,8 @@ export const getAllOrder = async (req, res) => {
              b.mobile AS buyer_mobile,
              b.address AS buyer_address,
               o.order_address,
-              o.order_contact
+              o.order_contact,
+              o.shipment_cost
       FROM orders o
       LEFT JOIN buyer b ON o.buyer_id = b.id
       ORDER BY o.id DESC
