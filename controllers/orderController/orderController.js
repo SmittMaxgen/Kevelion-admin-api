@@ -1816,9 +1816,11 @@ const attachOrderDetails = async (pool, orders) => {
     order.products = formattedProducts;
 
     // ✅ ADD THESE FIELDS AT ORDER LEVEL
+    const shipmentCost = Number(order.shipment_cost) || 0;
+
     order.total_base_amount = total_base_amount;
     order.total_gst_amount = total_gst_amount;
-    order.total_final_amount = total_final_amount;
+    order.total_final_amount = total_final_amount + shipmentCost;
 
     order.buyer_details = {
       id: order.buyer_id ?? null,
