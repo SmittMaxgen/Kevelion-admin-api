@@ -5,6 +5,7 @@ import {
   getAllSubscriptionPackages,
   deleteSubscriptionPackage,
   getSubscriptionPackageById,
+  setFreePlanPackage,
 } from "../../controllers/subscriptionPackageController/subscriptionPackageController.js"; // ✅ Update path as needed
 
 const router = Router();
@@ -16,6 +17,9 @@ router.post("/subscription-package", createSubscriptionPackage);
 
 // ✏️ Update Subscription Package
 router.patch("/subscription-package/:id", updateSubscriptionPackage);
+
+// ✏️ Update Subscription Package's Free Plan Status
+router.patch("/subscription-package/:id/set-free-plan", setFreePlanPackage);
 
 // 📋 Get All Subscription Packages
 router.get("/subscription-packages", getAllSubscriptionPackages);

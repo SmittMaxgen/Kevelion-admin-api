@@ -1,4 +1,4 @@
-// import { connectDB } from "../../connection/db.js";
+import { connectDB } from "../../connection/db.js";
 // import bcrypt from "bcrypt";
 
 // //pid 68da4c56922dd5bc816126f9
@@ -1606,7 +1606,7 @@
 //   }
 // };
 
-import { connectDB } from "../../connection/db.js";
+// import { connectDB } from "../../connection/db.js";
 import { sendOrderStatusNotification } from "../../utils/orderNotification.js";
 
 // =====================================================================
@@ -1834,7 +1834,10 @@ const attachOrderDetails = async (pool, orders) => {
     delete order.buyer_name;
     delete order.buyer_email;
     delete order.buyer_mobile;
-    delete order.buyer_address; // changed
+    delete order.buyer_address;
+
+    // Keep shipment_cost in response
+    order.shipment_cost = Number(order.shipment_cost) || 0;
   }
 
   return orders;
@@ -2545,8 +2548,10 @@ export const getDataById = async (req, res) => {
              b.name  AS buyer_name,
              b.email AS buyer_email,
              b.mobile AS buyer_mobile,
-                 o.order_address,
-              o.order_contact
+             b.address AS buyer_address,
+             o.order_address,
+             o.order_contact,
+             o.shipment_cost                  
       FROM orders o
       LEFT JOIN buyer b ON o.buyer_id = b.id
       WHERE o.id = ?
@@ -2614,345 +2619,1233 @@ export const getDataById = async (req, res) => {
   }
 };
 
+// import PDFDocument from "pdfkit";
+
+// export const generateOrderInvoice = async (req, res) => {
+//   try {
+//     const pool = await connectDB();
+//     const { orderId } = req.params;
+
+//     // Fetch order
+//     const [[order]] = await pool.query(
+//       `
+//       SELECT o.id, o.order_type, o.created_at, o.updated_at,
+//              o.order_address, o.order_contact, o.buyer_id,
+//              b.name AS buyer_name, b.email AS buyer_email,
+//              b.mobile AS buyer_mobile, b.address AS buyer_address
+//       FROM orders o
+//       LEFT JOIN buyer b ON o.buyer_id = b.id
+//       WHERE o.id = ?
+//     `,
+//       [orderId],
+//     );
+
+//     if (!order) return res.status(404).json({ message: "Order not found" });
+
+//     // Fetch products
+//     const [products] = await pool.query(
+//       `
+//       SELECT op.quantity, op.price, op.order_status, op.payment_status,
+//              p.name, p.sku, p.brand, p.gst, p.product_MRP,
+//              s.name AS seller_name, s.mobile AS seller_phone
+//       FROM order_products op
+//       LEFT JOIN product p ON op.product_id = p.id
+//       LEFT JOIN seller s ON op.seller_id = s.id
+//       WHERE op.order_id = ?
+//     `,
+//       [orderId],
+//     );
+
+//     if (!products || products.length === 0) {
+//       return res.status(404).json({ message: "No products found in order" });
+//     }
+
+//     // Calculate totals
+//     let totalBase = 0,
+//       totalGST = 0;
+//     products.forEach((p) => {
+//       const qty = parseFloat(p.quantity || 0);
+//       const price = parseFloat(p.price || 0);
+//       const lineTotal = qty * price;
+//       const gstAmt = lineTotal * (parseFloat(p.gst || 0) / 100);
+//       totalBase += lineTotal;
+//       totalGST += gstAmt;
+//     });
+//     const totalFinal = totalBase + totalGST;
+
+//     const doc = new PDFDocument({ margin: 40, size: "A4" });
+//     res.setHeader("Content-Type", "application/pdf");
+//     res.setHeader(
+//       "Content-Disposition",
+//       `inline; filename="invoice-order-${orderId}.pdf"`,
+//     );
+//     doc.pipe(res);
+
+//     const W = 515;
+//     let y = 40;
+
+//     // ==================== HEADER ====================
+//     // doc.fontSize(22).fillColor("#1a3c6e").text("KEVELION", 40, y);
+//     const sellerNames = [
+//       ...new Set(products.map((p) => p.seller_name).filter(Boolean)),
+//     ].join(", ");
+//     doc
+//       .fontSize(22)
+//       .fillColor("#1a3c6e")
+//       .text(`${sellerNames ? `${sellerNames}` : ""}`, 40, y);
+//     y += 26;
+//     doc.fontSize(9).fillColor("#888").text("B2B E-Commerce Platform", 40, y);
+
+//     const sellerPhones = [
+//       ...new Set(products.map((p) => p.seller_phone).filter(Boolean)),
+//     ].join(", ");
+
+//     y += 12;
+//     // doc
+//     //   .fontSize(8)
+//     //   .fillColor("#444")
+//     //   .text(`Seller Name: ${sellerNames}`, 40, y);
+//     // y += 10;
+//     doc.fontSize(8).fillColor("#444").text(`Contact: ${sellerPhones}`, 40, y);
+
+//     doc
+//       .fontSize(9)
+//       .fillColor("#555")
+//       .text("Tax Invoice / Bill of Supply", 400, y - 8, {
+//         align: "right",
+//         width: 155,
+//       });
+
+//     y += 18;
+//     doc
+//       .moveTo(40, y)
+//       .lineTo(555, y)
+//       .lineWidth(2)
+//       .strokeColor("#1a3c6e")
+//       .stroke();
+//     y += 18;
+
+//     // ==================== META ====================
+//     const invDate = new Date(order.created_at).toLocaleDateString("en-IN");
+//     doc.rect(40, y, W, 36).fillColor("#f0f4fa").fill();
+
+//     doc.fontSize(7).fillColor("#666");
+//     ["INVOICE NO", "ORDER ID", "DATE", "ITEMS"].forEach((txt, i) => {
+//       doc.text(txt, 50 + i * 120, y + 6);
+//     });
+
+//     doc.fontSize(10).fillColor("#1a3c6e").font("Helvetica-Bold");
+//     doc.text(`INV-${String(order.id).padStart(5, "0")}`, 50, y + 16);
+//     doc.text(`#${order.id}`, 170, y + 16);
+//     doc.text(invDate, 290, y + 16);
+//     doc.text(`${products.length}`, 430, y + 16);
+//     doc.font("Helvetica");
+
+//     y += 52;
+
+//     // ==================== ADDRESS BOXES ====================
+//     const boxHeight = 85;
+//     const drawBox = (x, bw, title, lines) => {
+//       doc
+//         .rect(x, y, bw, boxHeight)
+//         .strokeColor("#d0daea")
+//         .lineWidth(1)
+//         .stroke();
+//       doc
+//         .fontSize(7)
+//         .fillColor("#1a3c6e")
+//         .font("Helvetica-Bold")
+//         .text(title, x + 8, y + 6);
+
+//       doc
+//         .moveTo(x, y + 16)
+//         .lineTo(x + bw, y + 16)
+//         .strokeColor("#d0daea")
+//         .stroke();
+
+//       doc.font("Helvetica").fontSize(9).fillColor("#111");
+//       lines.forEach((line, i) => {
+//         if (line) {
+//           doc.text(line, x + 8, y + 23 + i * 12, {
+//             width: bw - 16,
+//             ellipsis: true,
+//           });
+//         }
+//       });
+//     };
+
+//     drawBox(40, 200, "BILL TO / BUYER", [
+//       order.buyer_name,
+//       order.buyer_email,
+//       order.buyer_mobile,
+//       order.buyer_address,
+//     ]);
+
+//     drawBox(248, 180, "SHIP TO", [
+//       order.buyer_name,
+//       order.order_address || order.buyer_address,
+//       order.order_contact ? `Contact: ${order.order_contact}` : "",
+//     ]);
+
+//     drawBox(436, 119, "PAYMENT", ["Total:", `Rs. ${totalFinal.toFixed(2)}`]);
+
+//     y += boxHeight + 25;
+
+//     // ==================== PRODUCTS TABLE ====================
+//     // ==================== PRODUCTS TABLE ====================
+//     const rowH = 48; // Increased for better wrapping
+//     const tableY = y;
+
+//     // Header
+//     doc.rect(40, y, W, 20).fillColor("#1a3c6e").fill();
+//     doc.fontSize(8).fillColor("#fff").font("Helvetica-Bold");
+
+//     const columns = [
+//       { txt: "#", x: 46, w: 20, align: "left" },
+//       { txt: "PRODUCT", x: 68, w: 162, align: "left" },
+//       { txt: "QTY", x: 235, w: 38, align: "center" },
+//       { txt: "PRICE", x: 275, w: 58, align: "right" },
+//       { txt: "GST%", x: 335, w: 38, align: "center" },
+//       { txt: "GST AMT", x: 375, w: 58, align: "right" },
+//       { txt: "TOTAL", x: 435, w: 62, align: "right" },
+//       { txt: "STATUS", x: 500, w: 55, align: "left" },
+//     ];
+
+//     columns.forEach((col) => {
+//       doc.text(col.txt, col.x, y + 6, { width: col.w, align: col.align });
+//     });
+
+//     y += 20;
+
+//     // Table Rows
+//     products.forEach((p, i) => {
+//       const qty = parseFloat(p.quantity || 0);
+//       const price = parseFloat(p.price || 0);
+//       const lineTotal = qty * price;
+//       const gstAmt = lineTotal * (parseFloat(p.gst || 0) / 100);
+
+//       // New page check
+//       if (y + rowH > 740) {
+//         doc.addPage();
+//         y = 60;
+//       }
+
+//       // Background & Border
+//       if (i % 2 === 0) doc.rect(40, y, W, rowH).fillColor("#f8fafd").fill();
+//       doc.rect(40, y, W, rowH).strokeColor("#dde6f0").lineWidth(0.5).stroke();
+
+//       // Row Content
+//       doc.fontSize(8).fillColor("#111").font("Helvetica-Bold");
+//       doc.text(`${i + 1}`, 46, y + 9, { width: 20 });
+
+//       // Product Name (multi-line support)
+//       doc.text(p.name || "N/A", 68, y + 7, {
+//         width: 160,
+//         ellipsis: true,
+//         lineGap: 1,
+//       });
+
+//       // doc
+//       //   .font("Helvetica")
+//       //   .fontSize(7)
+//       //   .fillColor("#555")
+//       //   .text(p.seller_name || "-", 68, y + 23, { width: 160, ellipsis: true });
+
+//       // Other columns
+//       doc.fontSize(8).fillColor("#111");
+//       doc.text(qty.toString(), 235, y + 13, { width: 38, align: "center" });
+//       doc.text(`Rs.${price.toFixed(2)}`, 275, y + 13, {
+//         width: 58,
+//         align: "right",
+//       });
+//       doc.text(`${parseFloat(p.gst || 0).toFixed(0)}%`, 335, y + 13, {
+//         width: 38,
+//         align: "center",
+//       });
+//       doc.text(`Rs.${gstAmt.toFixed(2)}`, 375, y + 13, {
+//         width: 58,
+//         align: "right",
+//       });
+//       doc.text(`Rs.${(lineTotal + gstAmt).toFixed(2)}`, 435, y + 13, {
+//         width: 62,
+//         align: "right",
+//       });
+
+//       // Status
+//       const statusColors = {
+//         Delivered: "#155724",
+//         Shipped: "#004085",
+//         Confirmed: "#0c5460",
+//         Cancelled: "#721c24",
+//         New: "#856404",
+//       };
+//       doc
+//         .fontSize(7.5)
+//         .fillColor(statusColors[p.order_status] || "#333")
+//         .text(p.order_status || "New", 500, y + 14, { width: 55 });
+
+//       y += rowH;
+//     });
+//     // ==================== TOTALS ====================
+//     y += 15;
+//     const totalsX = 340;
+
+//     const drawTotalRow = (label, value, highlight = false) => {
+//       if (y > 720) {
+//         doc.addPage();
+//         y = 80;
+//       }
+//       const h = highlight ? 26 : 22;
+//       if (highlight) doc.rect(totalsX, y, 215, h).fillColor("#1a3c6e").fill();
+
+//       doc
+//         .fontSize(9)
+//         .font("Helvetica-Bold")
+//         .fillColor(highlight ? "#fff" : "#555")
+//         .text(label, totalsX + 8, y + 7, { width: 110 });
+
+//       doc
+//         .fillColor(highlight ? "#fff" : "#111")
+//         .text(value, totalsX + 125, y + 7, { width: 85, align: "right" });
+
+//       if (!highlight) {
+//         doc
+//           .moveTo(totalsX, y + h)
+//           .lineTo(totalsX + 215, y + h)
+//           .strokeColor("#e0e8f0")
+//           .stroke();
+//       }
+//       y += h + 4;
+//     };
+
+//     drawTotalRow("Subtotal (excl. GST)", `Rs. ${totalBase.toFixed(2)}`);
+//     drawTotalRow("Total GST", `Rs. ${totalGST.toFixed(2)}`);
+//     drawTotalRow("GRAND TOTAL", `Rs. ${totalFinal.toFixed(2)}`, true);
+
+//     // ==================== FOOTER ====================
+//     if (y > 680) doc.addPage();
+//     y = 760;
+
+//     doc
+//       .moveTo(40, y)
+//       .lineTo(555, y)
+//       .lineWidth(1.5)
+//       .strokeColor("#1a3c6e")
+//       .stroke();
+
+//     doc
+//       .fontSize(7.5)
+//       .fillColor("#666")
+//       .text("* Computer-generated invoice. All amounts in INR.", 40, y + 8)
+//       .text("* For queries contact: kevelion.com", 40, y + 19);
+
+//     doc
+//       .fontSize(8)
+//       .fillColor("#333")
+//       .font("Helvetica-Bold")
+//       .text("Authorized Signatory", 430, y + 16, {
+//         width: 125,
+//         align: "right",
+//       });
+
+//     doc.end();
+//   } catch (err) {
+//     console.error("Invoice error:", err);
+//     return res.status(500).json({ message: err.message });
+//   }
+// };
+
+// =====================================================================
+//  GET ALL ORDERS BY BUYER
+// =====================================================================
+
 import PDFDocument from "pdfkit";
+import path from "path";
+import { fileURLToPath } from "url";
 
-export const generateOrderInvoice = async (req, res) => {
-  try {
-    const pool = await connectDB();
-    const { orderId } = req.params;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const LOGO_PATH = path.join(__dirname, "../../Kevelion-vendor/Vendor-Kevelion/src/assets/Kevelion_Logo.png");
+// import { connectDB } from "../../config/db.js"; // ← adjust to your path
 
-    // Fetch order
-    const [[order]] = await pool.query(
-      `
-      SELECT o.id, o.order_type, o.created_at, o.updated_at,
-             o.order_address, o.order_contact, o.buyer_id,
-             b.name AS buyer_name, b.email AS buyer_email,
-             b.mobile AS buyer_mobile, b.address AS buyer_address
-      FROM orders o
-      LEFT JOIN buyer b ON o.buyer_id = b.id
-      WHERE o.id = ?
-    `,
-      [orderId],
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+const Rs = (n) => `Rs.${parseFloat(n || 0).toFixed(2)}`;
+
+function numberToWords(amount) {
+  const ones = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ];
+  const tens = [
+    "",
+    "",
+    "Twenty",
+    "Thirty",
+    "Forty",
+    "Fifty",
+    "Sixty",
+    "Seventy",
+    "Eighty",
+    "Ninety",
+  ];
+
+  const num = Math.round(parseFloat(amount || 0));
+  if (num === 0) return "Zero Rupees Only";
+
+  function convert(n) {
+    if (n < 20) return ones[n];
+    if (n < 100)
+      return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+    if (n < 1000)
+      return (
+        ones[Math.floor(n / 100)] +
+        " Hundred" +
+        (n % 100 ? " " + convert(n % 100) : "")
+      );
+    if (n < 100000)
+      return (
+        convert(Math.floor(n / 1000)) +
+        " Thousand" +
+        (n % 1000 ? " " + convert(n % 1000) : "")
+      );
+    if (n < 10000000)
+      return (
+        convert(Math.floor(n / 100000)) +
+        " Lakh" +
+        (n % 100000 ? " " + convert(n % 100000) : "")
+      );
+    return (
+      convert(Math.floor(n / 10000000)) +
+      " Crore" +
+      (n % 10000000 ? " " + convert(n % 10000000) : "")
     );
+  }
+  return "Rupees " + convert(num) + " Only";
+}
 
-    if (!order) return res.status(404).json({ message: "Order not found" });
+// ─────────────────────────────────────────────
+//  DRAW ONE SELLER INVOICE PAGE
+// ─────────────────────────────────────────────
+function drawSellerInvoice(
+  doc,
+  order,
+  seller,
+  sellerProducts,
+  pageNum,
+  totalPages,
+) {
+  // ── constants ──
+  const PL = 40,
+    PR = 555,
+    W = 515;
+  const DARK = "#1a2d5a";
+  const LIGHT_BG = "#f4f6fb";
+  const BORDER = "#d0d9ec";
 
-    // Fetch products
-    const [products] = await pool.query(
-      `
-      SELECT op.quantity, op.price, op.order_status, op.payment_status,
-             p.name, p.sku, p.brand, p.gst, p.product_MRP,
-             s.name AS seller_name, s.mobile AS seller_phone
-      FROM order_products op
-      LEFT JOIN product p ON op.product_id = p.id
-      LEFT JOIN seller s ON op.seller_id = s.id
-      WHERE op.order_id = ?
-    `,
-      [orderId],
-    );
+  const invDate = new Date(order.created_at).toLocaleDateString("en-IN");
+  const invNo = `INV-${String(order.id).padStart(5, "0")}-${String(pageNum).padStart(2, "0")}`;
 
-    if (!products || products.length === 0) {
-      return res.status(404).json({ message: "No products found in order" });
-    }
+  // totals for this seller
+  let base = 0,
+    gstTotal = 0;
+  sellerProducts.forEach((p) => {
+    const qty = parseFloat(p.quantity || 0);
+    const price = parseFloat(p.price || 0);
+    const line = qty * price;
+    base += line;
+    gstTotal += (line * parseFloat(p.gst || 0)) / 100;
+  });
+  const grand = base + gstTotal;
+  const cgst = gstTotal / 2;
+  const sgst = gstTotal / 2;
 
-    // Calculate totals
-    let totalBase = 0,
-      totalGST = 0;
-    products.forEach((p) => {
-      const qty = parseFloat(p.quantity || 0);
-      const price = parseFloat(p.price || 0);
-      const lineTotal = qty * price;
-      const gstAmt = lineTotal * (parseFloat(p.gst || 0) / 100);
-      totalBase += lineTotal;
-      totalGST += gstAmt;
-    });
-    const totalFinal = totalBase + totalGST;
+  let y = 10;
 
-    const doc = new PDFDocument({ margin: 40, size: "A4" });
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="invoice-order-${orderId}.pdf"`,
-    );
-    doc.pipe(res);
+  // ── TOP BAR (thin dark strip) ──
+  doc.rect(0, 0, 595, 6).fillColor(DARK).fill();
 
-    const W = 515;
-    let y = 40;
+  // ── LOGO AREA ──
+  doc.image(LOGO_PATH, PL - 20, y - 20 , { height: 120 });
 
-    // ==================== HEADER ====================
-    // doc.fontSize(22).fillColor("#1a3c6e").text("KEVELION", 40, y);
-    const sellerNames = [
-      ...new Set(products.map((p) => p.seller_name).filter(Boolean)),
-    ].join(", ");
-    doc
-      .fontSize(22)
-      .fillColor("#1a3c6e")
-      .text(`${sellerNames ? `${sellerNames}` : ""}`, 40, y);
-    y += 26;
-    doc.fontSize(9).fillColor("#888").text("B2B E-Commerce Platform", 40, y);
-
-    const sellerPhones = [
-      ...new Set(products.map((p) => p.seller_phone).filter(Boolean)),
-    ].join(", ");
-
-    y += 12;
-    // doc
-    //   .fontSize(8)
-    //   .fillColor("#444")
-    //   .text(`Seller Name: ${sellerNames}`, 40, y);
-    // y += 10;
-    doc.fontSize(8).fillColor("#444").text(`Contact: ${sellerPhones}`, 40, y);
-
-    doc
-      .fontSize(9)
-      .fillColor("#555")
-      .text("Tax Invoice / Bill of Supply", 400, y - 8, {
-        align: "right",
-        width: 155,
-      });
-
-    y += 18;
-    doc
-      .moveTo(40, y)
-      .lineTo(555, y)
-      .lineWidth(2)
-      .strokeColor("#1a3c6e")
-      .stroke();
-    y += 18;
-
-    // ==================== META ====================
-    const invDate = new Date(order.created_at).toLocaleDateString("en-IN");
-    doc.rect(40, y, W, 36).fillColor("#f0f4fa").fill();
-
-    doc.fontSize(7).fillColor("#666");
-    ["INVOICE NO", "ORDER ID", "DATE", "ITEMS"].forEach((txt, i) => {
-      doc.text(txt, 50 + i * 120, y + 6);
+  // ── TITLE ──
+  doc
+    .fontSize(22)
+    .fillColor(DARK)
+    .font("Helvetica-Bold")
+    .text("TAX INVOICE", 0, y + 14, { align: "right", width: PR });
+  doc
+    .fontSize(8)
+    .fillColor("#888")
+    .font("Helvetica")
+    .text(`Page ${pageNum} of ${totalPages}`, 0, y + 40, {
+      align: "right",
+      width: PR,
     });
 
-    doc.fontSize(10).fillColor("#1a3c6e").font("Helvetica-Bold");
-    doc.text(`INV-${String(order.id).padStart(5, "0")}`, 50, y + 16);
-    doc.text(`#${order.id}`, 170, y + 16);
-    doc.text(invDate, 290, y + 16);
-    doc.text(`${products.length}`, 430, y + 16);
-    doc.font("Helvetica");
-
-    y += 52;
-
-    // ==================== ADDRESS BOXES ====================
-    const boxHeight = 85;
-    const drawBox = (x, bw, title, lines) => {
-      doc
-        .rect(x, y, bw, boxHeight)
-        .strokeColor("#d0daea")
-        .lineWidth(1)
-        .stroke();
-      doc
-        .fontSize(7)
-        .fillColor("#1a3c6e")
-        .font("Helvetica-Bold")
-        .text(title, x + 8, y + 6);
-
-      doc
-        .moveTo(x, y + 16)
-        .lineTo(x + bw, y + 16)
-        .strokeColor("#d0daea")
-        .stroke();
-
-      doc.font("Helvetica").fontSize(9).fillColor("#111");
-      lines.forEach((line, i) => {
-        if (line) {
-          doc.text(line, x + 8, y + 23 + i * 12, {
-            width: bw - 16,
-            ellipsis: true,
-          });
-        }
-      });
-    };
-
-    drawBox(40, 200, "BILL TO / BUYER", [
-      order.buyer_name,
-      order.buyer_email,
-      order.buyer_mobile,
-      order.buyer_address,
-    ]);
-
-    drawBox(248, 180, "SHIP TO", [
-      order.buyer_name,
-      order.order_address || order.buyer_address,
-      order.order_contact ? `Contact: ${order.order_contact}` : "",
-    ]);
-
-    drawBox(436, 119, "PAYMENT", ["Total:", `Rs. ${totalFinal.toFixed(2)}`]);
-
-    y += boxHeight + 25;
-
-    // ==================== PRODUCTS TABLE ====================
-    // ==================== PRODUCTS TABLE ====================
-    const rowH = 48; // Increased for better wrapping
-    const tableY = y;
-
-    // Header
-    doc.rect(40, y, W, 20).fillColor("#1a3c6e").fill();
-    doc.fontSize(8).fillColor("#fff").font("Helvetica-Bold");
-
-    const columns = [
-      { txt: "#", x: 46, w: 20, align: "left" },
-      { txt: "PRODUCT", x: 68, w: 162, align: "left" },
-      { txt: "QTY", x: 235, w: 38, align: "center" },
-      { txt: "PRICE", x: 275, w: 58, align: "right" },
-      { txt: "GST%", x: 335, w: 38, align: "center" },
-      { txt: "GST AMT", x: 375, w: 58, align: "right" },
-      { txt: "TOTAL", x: 435, w: 62, align: "right" },
-      { txt: "STATUS", x: 500, w: 55, align: "left" },
-    ];
-
-    columns.forEach((col) => {
-      doc.text(col.txt, col.x, y + 6, { width: col.w, align: col.align });
-    });
-
-    y += 20;
-
-    // Table Rows
-    products.forEach((p, i) => {
-      const qty = parseFloat(p.quantity || 0);
-      const price = parseFloat(p.price || 0);
-      const lineTotal = qty * price;
-      const gstAmt = lineTotal * (parseFloat(p.gst || 0) / 100);
-
-      // New page check
-      if (y + rowH > 740) {
-        doc.addPage();
-        y = 60;
-      }
-
-      // Background & Border
-      if (i % 2 === 0) doc.rect(40, y, W, rowH).fillColor("#f8fafd").fill();
-      doc.rect(40, y, W, rowH).strokeColor("#dde6f0").lineWidth(0.5).stroke();
-
-      // Row Content
-      doc.fontSize(8).fillColor("#111").font("Helvetica-Bold");
-      doc.text(`${i + 1}`, 46, y + 9, { width: 20 });
-
-      // Product Name (multi-line support)
-      doc.text(p.name || "N/A", 68, y + 7, {
-        width: 160,
-        ellipsis: true,
-        lineGap: 1,
-      });
-
-      // doc
-      //   .font("Helvetica")
-      //   .fontSize(7)
-      //   .fillColor("#555")
-      //   .text(p.seller_name || "-", 68, y + 23, { width: 160, ellipsis: true });
-
-      // Other columns
-      doc.fontSize(8).fillColor("#111");
-      doc.text(qty.toString(), 235, y + 13, { width: 38, align: "center" });
-      doc.text(`Rs.${price.toFixed(2)}`, 275, y + 13, {
-        width: 58,
-        align: "right",
-      });
-      doc.text(`${parseFloat(p.gst || 0).toFixed(0)}%`, 335, y + 13, {
-        width: 38,
-        align: "center",
-      });
-      doc.text(`Rs.${gstAmt.toFixed(2)}`, 375, y + 13, {
-        width: 58,
-        align: "right",
-      });
-      doc.text(`Rs.${(lineTotal + gstAmt).toFixed(2)}`, 435, y + 13, {
-        width: 62,
-        align: "right",
-      });
-
-      // Status
-      const statusColors = {
-        Delivered: "#155724",
-        Shipped: "#004085",
-        Confirmed: "#0c5460",
-        Cancelled: "#721c24",
-        New: "#856404",
-      };
-      doc
-        .fontSize(7.5)
-        .fillColor(statusColors[p.order_status] || "#333")
-        .text(p.order_status || "New", 500, y + 14, { width: 55 });
-
-      y += rowH;
-    });
-    // ==================== TOTALS ====================
-    y += 15;
-    const totalsX = 340;
-
-    const drawTotalRow = (label, value, highlight = false) => {
-      if (y > 720) {
-        doc.addPage();
-        y = 80;
-      }
-      const h = highlight ? 26 : 22;
-      if (highlight) doc.rect(totalsX, y, 215, h).fillColor("#1a3c6e").fill();
-
-      doc
-        .fontSize(9)
-        .font("Helvetica-Bold")
-        .fillColor(highlight ? "#fff" : "#555")
-        .text(label, totalsX + 8, y + 7, { width: 110 });
-
-      doc
-        .fillColor(highlight ? "#fff" : "#111")
-        .text(value, totalsX + 125, y + 7, { width: 85, align: "right" });
-
-      if (!highlight) {
-        doc
-          .moveTo(totalsX, y + h)
-          .lineTo(totalsX + 215, y + h)
-          .strokeColor("#e0e8f0")
-          .stroke();
-      }
-      y += h + 4;
-    };
-
-    drawTotalRow("Subtotal (excl. GST)", `Rs. ${totalBase.toFixed(2)}`);
-    drawTotalRow("Total GST", `Rs. ${totalGST.toFixed(2)}`);
-    drawTotalRow("GRAND TOTAL", `Rs. ${totalFinal.toFixed(2)}`, true);
-
-    // ==================== FOOTER ====================
-    if (y > 680) doc.addPage();
-    y = 760;
-
+  // ── DIVIDER ──
+  y = 68;
+  doc.moveTo(PL, y).lineTo(PR, y).lineWidth(1).strokeColor(BORDER).stroke();
+  y += 10;
+  // ── INVOICE META (right side) ──
+  const metaX = 320;
+  const metaRows = [
+    ["Invoice No.", invNo],
+    ["Order ID", `#${order.id}`],
+    ["Invoice Date", invDate],
+    ["Due Date", invDate],
+  ];
+  let my = y;
+  metaRows.forEach(([label, val]) => {
     doc
-      .moveTo(40, y)
-      .lineTo(555, y)
-      .lineWidth(1.5)
-      .strokeColor("#1a3c6e")
-      .stroke();
+      .fontSize(8)
+      .fillColor("#666")
+      .font("Helvetica")
+      .text(label, metaX, my, { width: 90 });
+    doc
+      .fontSize(8)
+      .fillColor(DARK)
+      .font("Helvetica-Bold")
+      .text(":", metaX + 90, my);
+    doc
+      .fontSize(8)
+      .fillColor(DARK)
+      .font("Helvetica-Bold")
+      .text(val, metaX + 100, my, { width: 155 });
+    my += 16;
+  });
 
+
+  y = Math.max(my, y + 50) + 14;
+
+  // ── 3 COLUMN BOXES: SELLER | BUYER | SHIP TO ──
+  const boxY = y;
+  const boxH = 118;
+  const bw = 165;
+  const gap = 10;
+
+  // box helper
+  const drawInfoBox = (bx, title, titleIcon, rows) => {
+    doc.rect(bx, boxY, bw, boxH).fillColor(LIGHT_BG).fill();
+    doc.rect(bx, boxY, bw, boxH).strokeColor(BORDER).lineWidth(0.6).stroke();
+
+    // title bar
+    doc.rect(bx, boxY, bw, 22).fillColor("#e8edf7").fill();
     doc
       .fontSize(7.5)
-      .fillColor("#666")
-      .text("* Computer-generated invoice. All amounts in INR.", 40, y + 8)
-      .text("* For queries contact: kevelion.com", 40, y + 19);
+      .fillColor(DARK)
+      .font("Helvetica-Bold")
+      .text(`${titleIcon}  ${title}`, bx + 8, boxY + 7, { width: bw - 16 });
+
+    let ry = boxY + 30;
+    rows.forEach(([label, val], i) => {
+      if (!val) return;
+      if (i === 0) {
+        // name row — bold larger
+        doc
+          .fontSize(9)
+          .fillColor(DARK)
+          .font("Helvetica-Bold")
+          .text(String(val), bx + 8, ry, { width: bw - 16, ellipsis: true });
+        ry += 15;
+      } else {
+        doc
+          .fontSize(7)
+          .fillColor("#888")
+          .font("Helvetica")
+          .text(String(label), bx + 8, ry, { width: 42, continued: false });
+        doc
+          .fontSize(7)
+          .fillColor("#333")
+          .font("Helvetica")
+          .text(String(val), bx + 52, ry, { width: bw - 60, ellipsis: true });
+        ry += 12;
+      }
+    });
+  };
+
+  drawInfoBox(PL, "SELLER", "", [
+    ["", seller.seller_name || "N/A"],
+    ["GSTIN", seller.seller_gstin || "N/A"],
+    ["Email", seller.seller_email || "N/A"],
+    ["Address", seller.seller_address || "N/A"],
+  ]);
+
+  drawInfoBox(PL + bw + gap, "BUYER", "", [
+    ["", order.buyer_name || "N/A"],
+    ["GSTIN", order.buyer_gstin || "N/A"],
+    ["Email", order.buyer_email || "N/A"],
+    ["Address", order.buyer_address || "N/A"],
+  ]);
+
+  drawInfoBox(PL + (bw + gap) * 2, "SHIP TO", "", [
+    ["", order.buyer_name || "N/A"],
+    ["Address", order.order_address || order.buyer_address || "N/A"],
+  ]);
+
+  y = boxY + boxH + 12;
+
+  // ── PAYMENT INFO STRIP ──
+  // doc.rect(PL, y, W, 36).fillColor(LIGHT_BG).fill();
+  // doc.rect(PL, y, W, 36).strokeColor(BORDER).lineWidth(0.5).stroke();
+
+  // const pCols = [
+  //   { icon: "💳", label: "Payment Method", val: "Online Payment" },
+  //   {
+  //     icon: "✓",
+  //     label: "Payment Status",
+  //     val: sellerProducts[0]?.payment_status || "Pending",
+  //   },
+  //   { icon: "📅", label: "Dispatch Date", val: invDate },
+  //   { icon: "🚚", label: "Delivery By", val: invDate },
+  //   { icon: "📍", label: "Place of Supply", val: "India" },
+  // ];
+  // const cw = W / pCols.length;
+  // pCols.forEach((c, i) => {
+  //   const cx = PL + i * cw;
+  //   if (i > 0)
+  //     doc
+  //       .moveTo(cx, y + 6)
+  //       .lineTo(cx, y + 30)
+  //       .strokeColor(BORDER)
+  //       .lineWidth(0.4)
+  //       .stroke();
+  //   doc
+  //     .fontSize(7)
+  //     .fillColor("#888")
+  //     .font("Helvetica")
+  //     .text(c.label, cx + 8, y + 7, { width: cw - 10 });
+  //   doc
+  //     .fontSize(8)
+  //     .fillColor(DARK)
+  //     .font("Helvetica-Bold")
+  //     .text(c.val, cx + 8, y + 18, { width: cw - 10 });
+  // });
+
+  // y += 48;
+
+  // ── PRODUCTS TABLE ──
+  // Header
+  const cols = [
+    { h: "#",          x: PL,       w: 16,  a: "center" },
+    { h: "PRODUCT",    x: PL + 18,  w: 155, a: "left"   },
+    { h: "SKU",        x: PL + 175, w: 55,  a: "center" },
+    { h: "QTY",        x: PL + 232, w: 35,  a: "center" },
+    { h: "UNIT",       x: PL + 269, w: 30,  a: "center" },
+    { h: "UNIT PRICE", x: PL + 301, w: 68,  a: "right"  },
+    { h: "GST %",      x: PL + 371, w: 36,  a: "center" },
+    { h: "GST AMT",    x: PL + 409, w: 50,  a: "right"  },
+{ h: "TOTAL",      x: PL + 455, w: 55,  a: "right"  },
+  ];
+
+  doc.rect(PL, y, W, 20).fillColor(DARK).fill();
+  doc.fontSize(7).fillColor("#fff").font("Helvetica-Bold");
+  cols.forEach((c) =>
+    doc.text(c.h, c.x + 2, y + 6, { width: c.w - 2, align: c.a }),
+  );
+  y += 20;
+
+  const statusColors = {
+    Delivered: "#155724",
+    Shipped: "#004085",
+    Confirmed: "#0c5460",
+    Cancelled: "#721c24",
+    New: "#856404",
+  };
+
+  sellerProducts.forEach((p, i) => {
+    const qty = parseFloat(p.quantity || 0);
+    const price = parseFloat(p.price || 0);
+    const gstPct = parseFloat(p.gst || 0);
+    const line = qty * price;
+    const gstAmt = (line * gstPct) / 100;
+const nameLines = Math.ceil((p.name || "N/A").length / 18);
+    const rowH = Math.max(34, nameLines * 12 + 16);
+    doc
+      .rect(PL, y, W, rowH)
+      .fillColor(i % 2 === 0 ? "#fff" : LIGHT_BG)
+      .fill();
+    doc.rect(PL, y, W, rowH).strokeColor(BORDER).lineWidth(0.4).stroke();
+
+    const cy = y + 6;
+
+    doc
+      .fontSize(7)
+      .fillColor(DARK)
+      .font("Helvetica-Bold")
+      .text(`${i + 1}`, cols[0].x + 2, cy + 5, {
+        width: cols[0].w,
+        align: "center",
+      });
+
+    // product name + subtitle
+    doc
+      .fontSize(8)
+      .fillColor(DARK)
+      .font("Helvetica-Bold")
+      .text(p.name || "N/A", cols[1].x + 2, cy, {
+        width: cols[1].w - 2,
+        ellipsis: true,
+      });
+    doc
+      .fontSize(6.5)
+      .fillColor("#777")
+      .font("Helvetica")
+      .text(p.brand || "", cols[1].x + 2, cy + 12, {
+        width: cols[1].w - 2,
+        ellipsis: true,
+      });
+
+    doc.fontSize(7.5).fillColor("#333").font("Helvetica");
+    doc.text(p.sku || "-", cols[2].x + 2, cy + 5, {
+      width: cols[2].w - 2,
+      align: "center",
+    });
+    doc.text(`${qty}`, cols[3].x + 2, cy + 5, { width: cols[3].w - 2, align: "center" });
+    doc.text("Nos",    cols[4].x + 2, cy + 5, { width: cols[4].w - 2, align: "center" });
+
+    doc.font("Helvetica-Bold").fillColor(DARK);
+    doc.text(`Rs.${price.toFixed(2)}`,          cols[5].x + 2, cy + 5, { width: cols[5].w - 2, align: "right" });
+    doc.font("Helvetica").fillColor("#555");
+    doc.text(`${gstPct.toFixed(0)}%`,           cols[6].x + 2, cy + 5, { width: cols[6].w - 2, align: "center" });
+    doc.text(`Rs.${gstAmt.toFixed(2)}`,         cols[7].x + 2, cy + 5, { width: cols[7].w - 2, align: "right" });
+    doc.font("Helvetica-Bold").fillColor(DARK);
+doc.text(`Rs.${(line + gstAmt).toFixed(2)}`, cols[8].x, cy + 5, { width: cols[8].w, align: "right" });
+    y += rowH;
+  });
+
+  y += 16;
+
+  // ── NOTES + TOTALS side by side ──
+  const notesX = PL,
+    notesW = 220;
+  const totX = PL + notesW + 20,
+    totW = W - notesW - 20;
+
+  // // Notes box
+  // doc.rect(notesX, y, notesW, 110).fillColor(LIGHT_BG).fill();
+  // doc.rect(notesX, y, notesW, 110).strokeColor(BORDER).lineWidth(0.5).stroke();
+  // doc
+  //   .fontSize(8)
+  //   .fillColor(DARK)
+  //   .font("Helvetica-Bold")
+  //   .text("Invoice Notes", notesX + 8, y + 8);
+  // const notes = [
+  //   "Please check the goods before accepting.",
+  //   "Goods once sold will not be taken back.",
+  //   "For any queries, contact us on the details above.",
+  //   "This is a computer-generated invoice.",
+  // ];
+  // let ny = y + 22;
+  // notes.forEach((n) => {
+  //   doc
+  //     .fontSize(7)
+  //     .fillColor("#555")
+  //     .font("Helvetica")
+  //     .text(`• ${n}`, notesX + 8, ny, { width: notesW - 16 });
+  //   ny += 12;
+  // });
+
+  // Totals
+  const drawTot = (label, val, highlight, ty) => {
+    if (highlight) {
+      doc.rect(totX, ty, totW, 24).fillColor(DARK).fill();
+      doc
+        .fontSize(10)
+        .fillColor("#fff")
+        .font("Helvetica-Bold")
+        .text(label, totX + 8, ty + 7, { width: totW / 2 });
+      doc.text(val, totX + totW / 2, ty + 7, {
+        width: totW / 2 - 8,
+        align: "right",
+      });
+    } else {
+      doc.rect(totX, ty, totW, 20).fillColor("#fff").fill();
+      doc.rect(totX, ty, totW, 20).strokeColor(BORDER).lineWidth(0.4).stroke();
+      doc
+        .fontSize(8)
+        .fillColor("#555")
+        .font("Helvetica")
+        .text(label, totX + 8, ty + 6, { width: totW / 2 });
+      doc
+        .fontSize(8)
+        .fillColor(DARK)
+        .font("Helvetica-Bold")
+        .text(val, totX + totW / 2, ty + 6, {
+          width: totW / 2 - 8,
+          align: "right",
+        });
+    }
+  };
+
+  drawTot("Subtotal (excl. GST)", `Rs.${base.toFixed(2)}`, false, y);
+  drawTot(
+    `CGST (${((gstTotal / base) * 50 || 0).toFixed(0)}%)`,
+    `Rs.${cgst.toFixed(2)}`,
+    false,
+    y + 20,
+  );
+  drawTot(
+    `SGST (${((gstTotal / base) * 50 || 0).toFixed(0)}%)`,
+    `Rs.${sgst.toFixed(2)}`,
+    false,
+    y + 40,
+  );
+  drawTot("GRAND TOTAL", `Rs.${grand.toFixed(2)}`, true, y + 62);
+
+  // Amount in words
+  doc
+    .fontSize(7)
+    .fillColor("#555")
+    .font("Helvetica")
+    .text(`Amount in words: ${numberToWords(grand)}`, totX, y + 90, {
+      width: totW,
+    });
+
+  y += 118;
+
+  // ── FOOTER ──
+  doc
+    .moveTo(PL, y + 4)
+    .lineTo(PR, y + 4)
+    .lineWidth(0.5)
+    .strokeColor(BORDER)
+    .stroke();
+
+  // left
+  doc
+    .fontSize(7)
+    .fillColor("#888")
+    .font("Helvetica")
+    .text("This invoice is generated by Kevelion", PL, y + 10)
+    .text(`on behalf of the seller ${seller.seller_name || ""}.`, PL, y + 21);
+
+  // right — signatory
+  doc
+    .moveTo(PR - 130, y + 8)
+    .lineTo(PR, y + 8)
+    .strokeColor("#aaa")
+    .lineWidth(0.5)
+    .stroke();
+  doc
+    .fontSize(7)
+    .fillColor("#555")
+    .font("Helvetica")
+    .text("Authorized Signatory", PR - 128, y + 12, {
+      width: 128,
+      align: "center",
+    });
+  doc
+    .fontSize(8)
+    .fillColor(DARK)
+    .font("Helvetica-Bold")
+    .text(seller.seller_name || "", PR - 128, y + 23, {
+      width: 128,
+      align: "center",
+    });
+
+      // ── PERFECT BOTTOM FOOTER ──
+  // Dark blue strip pinned exactly at bottom of every page
+  doc.rect(0, 812, 595, 32).fillColor("#0f2b5e").fill();
+
+  doc
+    .fontSize(9.5)
+    .fillColor("#ffffff")
+    .font("Helvetica-Bold")
+    .text("Thank you for your business! | Kevelion - Empowering Businesses", 
+          0, 820, { align: "center", width: 595 });
+}
+
+// ─────────────────────────────────────────────
+//  DRAW SUMMARY PAGE  (page 1)
+// ─────────────────────────────────────────────
+function drawSummaryPage(doc, order, groupedSellers, totalPages) {
+  const PL = 40,
+    PR = 555,
+    W = 515;
+  const DARK = "#1a2d5a";
+  const LIGHT_BG = "#f4f6fb";
+  const BORDER = "#d0d9ec";
+
+  const invDate = new Date(order.created_at).toLocaleDateString("en-IN");
+ let y = 10;
+
+  // top bar
+  doc.rect(0, 0, 595, 6).fillColor(DARK).fill();
+
+  // logo
+  doc.image(LOGO_PATH, PL - 20, y - 20, { height: 120 });
+
+  doc
+    .fontSize(22)
+    .fillColor(DARK)
+    .font("Helvetica-Bold")
+    .text("INVOICE SUMMARY", 0, y + 14, { align: "right", width: PR });
+  doc
+    .fontSize(8)
+    .fillColor("#888")
+    .font("Helvetica")
+    .text(`Page 1 of ${totalPages}`, 0, y + 40, { align: "right", width: PR });
+
+  y = 68;
+  doc.moveTo(PL, y).lineTo(PR, y).lineWidth(0.8).strokeColor(BORDER).stroke();
+  y += 14;
+  // ── 3 COLUMN: website | order details | buyer ──
+  const col1X = PL;
+  const col2X = 210;
+  const col3X = 390;
+  const colW  = 160;
+  const rowStart = y;
+
+  // COL 1 — website info
+  doc.fontSize(8).fillColor("#555").font("Helvetica")
+     .text("www.kevelion.com",    col1X, rowStart + 4)
+     .text("support@kevelion.com",col1X, rowStart + 18);
+
+  // COL 2 — order details
+  doc.fontSize(9).fillColor(DARK).font("Helvetica-Bold")
+     .text("Order Details", col2X, rowStart);
+  const orderMeta = [
+    ["Order ID",       `#ORD-${new Date(order.created_at).getFullYear()}-${order.id}`],
+    ["Order Date",     new Date(order.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })],
+    ["Total Sellers",  `${groupedSellers.length}`],
+    ["Total Invoices", `${groupedSellers.length}`],
+  ];
+  let oy = rowStart + 14;
+  orderMeta.forEach(([l, v]) => {
+    doc.fontSize(7).fillColor("#666").font("Helvetica").text(l, col2X, oy, { width: 72 });
+    doc.fillColor("#333").font("Helvetica").text(":", col2X + 72, oy);
+    doc.fillColor(DARK).font("Helvetica-Bold").text(v, col2X + 80, oy, { width: colW - 80 });
+    oy += 13;
+  });
+
+  // COL 3 — buyer
+  doc.fontSize(9).fillColor(DARK).font("Helvetica-Bold")
+     .text("Bill To / Buyer", col3X, rowStart);
+  doc.fontSize(9).fillColor(DARK).font("Helvetica-Bold")
+     .text(order.buyer_name || "N/A", col3X, rowStart + 14, { width: colW });
+  doc.fontSize(7).fillColor("#555").font("Helvetica")
+     .text(order.buyer_address || "", col3X, rowStart + 27, { width: colW });
+
+  y = Math.max(oy, rowStart + 60) + 10;
+  // ── INFO BANNER ──
+  // doc.rect(PL, y, W, 34).fillColor("#e8f0fb").fill();
+  // doc.rect(PL, y, W, 34).strokeColor("#b8cce8").lineWidth(0.5).stroke();
+  // doc
+  //   .fontSize(8)
+  //   .fillColor(DARK)
+  //   .font("Helvetica-Bold")
+  //   .text(
+  //     "This PDF contains separate invoices for each seller.",
+  //     PL + 14,
+  //     y + 7,
+  //   );
+  // doc
+  //   .fontSize(7.5)
+  //   .fillColor("#555")
+  //   .font("Helvetica")
+  //   .text(
+  //     "Use the page navigation or scroll to view individual seller invoices.",
+  //     PL + 14,
+  //     y + 19,
+  //   );
+  // y += 46;
+
+  // ── ORDER SUMMARY TABLE ──
+  doc
+    .fontSize(10)
+    .fillColor(DARK)
+    .font("Helvetica-Bold")
+    .text("Order Summary (By Seller)", PL, y);
+  y += 12;
+
+  // table header
+  doc.rect(PL, y, W, 20).fillColor(DARK).fill();
+  doc.fontSize(7.5).fillColor("#fff").font("Helvetica-Bold");
+  const sc = [
+    { h: "Seller Details", x: PL + 8, w: 160 },
+    { h: "Items", x: PL + 172, w: 40 },
+    { h: "Amount (excl. GST)", x: PL + 216, w: 80 },
+    { h: "GST Amount", x: PL + 300, w: 70 },
+    { h: "Total Amount (incl. GST)", x: PL + 374, w: 90 },
+    { h: "Invoice Page", x: PL + 468, w: 60 },
+  ];
+  sc.forEach((c) => doc.text(c.h, c.x, y + 6, { width: c.w }));
+  y += 20;
+
+  let grandBase = 0,
+    grandGst = 0,
+    grandTotal = 0,
+    grandItems = 0;
+
+  groupedSellers.forEach((s, si) => {
+    let sBase = 0,
+      sGst = 0;
+    s.products.forEach((p) => {
+      const line = parseFloat(p.quantity || 0) * parseFloat(p.price || 0);
+      const gst = (line * parseFloat(p.gst || 0)) / 100;
+      sBase += line;
+      sGst += gst;
+    });
+    const sTotal = sBase + sGst;
+    grandBase += sBase;
+    grandGst += sGst;
+    grandTotal += sTotal;
+    grandItems += s.products.length;
+
+    const rowH = 24 + s.products.length * 13 + 8;
+    doc
+      .rect(PL, y, W, rowH)
+      .fillColor(si % 2 === 0 ? "#fff" : "#f9fafd")
+      .fill();
+    doc.rect(PL, y, W, rowH).strokeColor(BORDER).lineWidth(0.4).stroke();
+
+    // seller name + gstin
+    doc
+      .fontSize(8.5)
+      .fillColor(DARK)
+      .font("Helvetica-Bold")
+      .text(s.seller_name || "N/A", sc[0].x, y + 5, { width: sc[0].w });
+    doc
+      .fontSize(6.5)
+      .fillColor("#777")
+      .font("Helvetica")
+      .text(`GSTIN: ${s.seller_gstin || "N/A"}`, sc[0].x, y + 17, {
+        width: sc[0].w,
+      });
 
     doc
       .fontSize(8)
       .fillColor("#333")
       .font("Helvetica-Bold")
-      .text("Authorized Signatory", 430, y + 16, {
-        width: 125,
-        align: "right",
+      .text(`${s.products.length} Items`, sc[1].x, y + 8, { width: sc[1].w });
+
+    doc
+      .fontSize(8)
+      .fillColor("#333")
+      .font("Helvetica")
+      .text(`Rs.${sBase.toFixed(2)}`, sc[2].x, y + 8, { width: sc[2].w })
+      .text(`Rs.${sGst.toFixed(2)}`, sc[3].x, y + 8, { width: sc[3].w });
+
+    doc
+      .fontSize(9)
+      .fillColor("#1a7a3f")
+      .font("Helvetica-Bold")
+      .text(`Rs.${sTotal.toFixed(2)}`, sc[4].x, y + 8, { width: sc[4].w });
+
+    doc
+      .fontSize(7.5)
+      .fillColor("#0046a8")
+      .font("Helvetica")
+      .text(`Page ${si + 2}`, sc[5].x, y + 8, { width: sc[5].w });
+
+    // top items
+    doc
+      .fontSize(6.5)
+      .fillColor("#888")
+      .font("Helvetica-Bold")
+      .text("Top Items", sc[0].x, y + 28, { width: 60 });
+    s.products.forEach((p, pi) => {
+      const line = parseFloat(p.quantity || 0) * parseFloat(p.price || 0);
+      doc
+        .fontSize(6.5)
+        .fillColor("#444")
+        .font("Helvetica")
+        .text(
+          `• ${p.name || "N/A"} (Qty: ${p.quantity})`,
+          sc[0].x,
+          y + 38 + pi * 13,
+          { width: 160 },
+        );
+      doc.text(`Rs.${line.toFixed(2)}`, sc[2].x, y + 38 + pi * 13, {
+        width: sc[2].w,
       });
+    });
+
+    y += rowH;
+  });
+
+  // grand total row
+  y += 4;
+  doc.rect(PL, y, W, 36).fillColor(LIGHT_BG).fill();
+  doc.rect(PL, y, W, 36).strokeColor(BORDER).lineWidth(0.6).stroke();
+  doc
+    .fontSize(9)
+    .fillColor(DARK)
+    .font("Helvetica-Bold")
+    .text("Grand Total (All Sellers)", sc[0].x, y + 5, { width: 180 });
+  doc
+    .fontSize(7.5)
+    .fillColor("#555")
+    .font("Helvetica")
+    .text(`${grandItems} Items`, sc[0].x, y + 20, { width: 100 });
+  doc
+    .fontSize(8)
+    .fillColor("#333")
+    .font("Helvetica")
+    .text(`Rs.${grandBase.toFixed(2)}`, sc[2].x, y + 12, { width: sc[2].w });
+  doc.text(`Rs.${grandGst.toFixed(2)}`, sc[3].x, y + 12, { width: sc[3].w });
+  doc
+    .fontSize(11)
+    .fillColor("#1a7a3f")
+    .font("Helvetica-Bold")
+    .text(`Rs.${grandTotal.toFixed(2)}`, sc[4].x, y + 10, { width: sc[4].w });
+
+  y += 52;
+
+  // // ── NOTES + HOW IT WORKS ──
+  // const nw = 240,
+  //   hw = 240;
+  // doc.rect(PL, y, nw, 80).fillColor(LIGHT_BG).fill();
+  // doc.rect(PL, y, nw, 80).strokeColor(BORDER).lineWidth(0.5).stroke();
+  // doc
+  //   .fontSize(8)
+  //   .fillColor(DARK)
+  //   .font("Helvetica-Bold")
+  //   .text("Important Notes", PL + 8, y + 8);
+  // const notes = [
+  //   "Goods once sold will not be taken back.",
+  //   "Please check the goods before accepting.",
+  //   "For any queries, contact the respective seller.",
+  //   "This is a computer-generated invoice summary.",
+  // ];
+  // notes.forEach((n, i) => {
+  //   doc
+  //     .fontSize(7)
+  //     .fillColor("#555")
+  //     .font("Helvetica")
+  //     .text(`• ${n}`, PL + 8, y + 22 + i * 13, { width: nw - 16 });
+  // });
+
+  
+  // ── PERFECT BOTTOM FOOTER ──
+  // Dark blue strip pinned exactly at bottom
+  doc.rect(0, 812, 595, 32).fillColor("#0f2b5e").fill();   // Exact blue color
+
+  doc
+    .fontSize(9.5)
+    .fillColor("#ffffff")
+    .font("Helvetica-Bold")
+    .text("Thank you for your business! | Kevelion - Empowering Businesses", 
+          0, 820, { align: "center", width: 595 });
+  // doc
+  //   .fontSize(7)
+  //   .fillColor("#e8500a")
+  //   .font("Helvetica")
+  //   .text("Kevelion – Empowering Businesses, Connecting Growth", 0, y + 14, {
+  //     align: "right",
+  //     width: PR,
+  //   });
+}
+
+// ─────────────────────────────────────────────
+//  MAIN CONTROLLER
+// ─────────────────────────────────────────────
+export const generateOrderInvoice = async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const { orderId } = req.params;
+
+    // fetch order
+    const [[order]] = await pool.query(
+      `SELECT o.id, o.order_type, o.created_at, o.order_address, o.order_contact, o.buyer_id,
+              b.name AS buyer_name, b.email AS buyer_email,
+              b.mobile AS buyer_mobile, b.address AS buyer_address
+       FROM orders o
+       LEFT JOIN buyer b ON o.buyer_id = b.id
+       WHERE o.id = ?`,
+      [orderId],
+    );
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // fetch products with seller info
+    const [products] = await pool.query(
+      `SELECT op.quantity, op.price, op.order_status, op.payment_status,
+p.name, p.sku, p.brand, p.gst, p.product_MRP,
+      s.id AS seller_id,
+              s.name   AS seller_name,
+              s.mobile AS seller_phone,
+              s.email  AS seller_email
+       FROM order_products op
+       LEFT JOIN product p ON op.product_id = p.id
+       LEFT JOIN seller  s ON op.seller_id  = s.id
+       WHERE op.order_id = ?`,
+      [orderId],
+    );
+    if (!products?.length)
+      return res.status(404).json({ message: "No products found" });
+
+    // group by seller
+    const sellerMap = new Map();
+    products.forEach((p) => {
+      const sid = p.seller_id || p.seller_name;
+      if (!sellerMap.has(sid)) {
+        sellerMap.set(sid, {
+          seller_id: sid,
+          seller_name: p.seller_name,
+          seller_phone: p.seller_phone,
+          seller_email: p.seller_email,
+          seller_gstin: p.seller_gstin || null,
+          seller_address: p.seller_address || null,
+          products: [],
+        });
+      }
+      sellerMap.get(sid).products.push(p);
+    });
+
+    const groupedSellers = [...sellerMap.values()];
+    const totalPages = groupedSellers.length + 1; // +1 for summary
+
+    // build PDF
+    const doc = new PDFDocument({
+      margin: 0,
+      size: "A4",
+      autoFirstPage: false,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="invoice-order-${orderId}.pdf"`,
+    );
+    doc.pipe(res);
+
+    // PAGE 1 — summary
+    doc.addPage();
+    drawSummaryPage(doc, order, groupedSellers, totalPages);
+
+    // PAGES 2+ — one per seller
+    groupedSellers.forEach((seller, i) => {
+      doc.addPage();
+      drawSellerInvoice(doc, order, seller, seller.products, i + 2, totalPages);
+    });
 
     doc.end();
   } catch (err) {
     console.error("Invoice error:", err);
-    return res.status(500).json({ message: err.message });
+    if (!res.headersSent) res.status(500).json({ message: err.message });
   }
 };
 
-// =====================================================================
-//  GET ALL ORDERS BY BUYER
-// =====================================================================
 export const getAllOrderByBuyer = async (req, res) => {
   try {
     const pool = await connectDB();

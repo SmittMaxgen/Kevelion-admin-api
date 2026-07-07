@@ -147,8 +147,18 @@ export const createSeller = async (req, res) => {
       ],
     );
 
-    // 🎁 Assign FREE TRIAL (3 months)
-    const trialDays = 90;
+    // 🎁 Assign FREE TRIAL (dynamic package based on is_free_plan flag)
+    const [freePlanRows] = await pool.query(
+      `SELECT id, validity_days FROM subscription_package WHERE is_free_plan = 1 LIMIT 1`,
+    );
+
+    if (freePlanRows.length === 0) {
+      return res.status(400).json({ message: "No free plan package is configured" });
+    }
+
+    const freePlanPackageId = freePlanRows[0].id;
+    const trialDays = freePlanRows[0].validity_days || 90;
+
     const startDate = new Date();
     const endDate = new Date();
     endDate.setDate(startDate.getDate() + trialDays);
@@ -157,14 +167,14 @@ export const createSeller = async (req, res) => {
       `INSERT INTO seller_packages_history 
       (seller_id, package_id, package_start_date, package_end_date, amount_paid,payment_status, payment_mode)
       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [sellerId, 1, startDate, endDate, 0, "paid", "free_trial"],
+      [sellerId, freePlanPackageId, startDate, endDate, 0, "paid", "free_trial"],
     );
 
     const sellerCurrentPackageId = sellerPackageResult.insertId;
 
     await pool.query(
       `UPDATE seller SET current_package_id=?, subscription=?, current_package_start=?, current_package_end=?, join_date=? WHERE id=?`,
-      [sellerCurrentPackageId, 1, startDate, endDate, startDate, sellerId],
+      [sellerCurrentPackageId, freePlanPackageId, startDate, endDate, startDate, sellerId],
     );
 
     res.status(201).json({
@@ -665,6 +675,42 @@ export const updateSeller = async (req, res) => {
       ? await bcrypt.hash(password, 10)
       : sellerRows[0].password;
 
+    // ✅ Auto-calculate package start/end dates from validity_days
+    let newPackageStart = sellerRows[0].current_package_start;
+    let newPackageEnd = sellerRows[0].current_package_end;
+    let resolvedPackageId = current_package_id ?? sellerRows[0].current_package_id;
+
+    // If no package id passed from FE, fallback to the free plan package
+    if (!current_package_id) {
+      const [freePlanRows] = await pool.query(
+        "SELECT id FROM subscription_package WHERE is_free_plan = 1 LIMIT 1",
+      );
+
+      if (freePlanRows.length > 0) {
+        resolvedPackageId = freePlanRows[0].id;
+      }
+    }
+
+    if (resolvedPackageId && resolvedPackageId !== sellerRows[0].current_package_id) {
+      const [packageRows] = await pool.query(
+        "SELECT validity_days FROM subscription_package WHERE id = ?",
+        [resolvedPackageId],
+      );
+
+      if (packageRows.length === 0) {
+        return res.status(400).json({ message: "Invalid subscription package id" });
+      }
+
+      const validityDays = packageRows[0].validity_days || 30;
+
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(startDate.getDate() + validityDays);
+
+      newPackageStart = startDate;
+      newPackageEnd = endDate;
+    }
+
     const getFilePath = (field) =>
       req.files?.[field]?.[0]
         ? `/uploads/${req.files[field][0].filename}`
@@ -696,11 +742,12 @@ export const updateSeller = async (req, res) => {
         approve_status ?? sellerRows[0].approve_status, // ✅ Fix 2: ?? instead of ||
         device_token || sellerRows[0].device_token,
         subscription ?? sellerRows[0].subscription,
-        current_package_id ?? sellerRows[0].current_package_id,
+        resolvedPackageId,
+        newPackageStart,
+        newPackageEnd,
         id,
       ],
     );
-
     // ✅ Update company
     const [companyRows] = await pool.query(
       "SELECT * FROM seller_company_details WHERE seller_id = ?",
