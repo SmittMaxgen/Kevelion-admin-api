@@ -731,23 +731,58 @@ export const updateSeller = async (req, res) => {
     //   ],
     // );
 
-    await pool.query(
-      `UPDATE seller SET name=?, mobile=?, email=?, password=?, address=? ,approve_status=?, device_token=?, subscription=?, current_package_id=? WHERE id=?`,
-      [
-        name || sellerRows[0].name,
-        mobile || sellerRows[0].mobile,
-        email || sellerRows[0].email,
-        hashedPassword || sellerRows[0].password, // ✅ Fix 1: fallback to existing password
-        address || sellerRows[0].address,
-        approve_status ?? sellerRows[0].approve_status, // ✅ Fix 2: ?? instead of ||
-        device_token || sellerRows[0].device_token,
-        subscription ?? sellerRows[0].subscription,
-        resolvedPackageId,
-        newPackageStart,
-        newPackageEnd,
-        id,
-      ],
-    );
+    // await pool.query(
+    //   `UPDATE seller SET name=?, mobile=?, email=?, password=?, address=? ,approve_status=?, device_token=?, subscription=?, current_package_id=? WHERE id=?`,
+    //   [
+    //     name || sellerRows[0].name,
+    //     mobile || sellerRows[0].mobile,
+    //     email || sellerRows[0].email,
+    //     hashedPassword || sellerRows[0].password, // ✅ Fix 1: fallback to existing password
+    //     address || sellerRows[0].address,
+    //     approve_status ?? sellerRows[0].approve_status, // ✅ Fix 2: ?? instead of ||
+    //     device_token || sellerRows[0].device_token,
+    //     subscription ?? sellerRows[0].subscription,
+    //     resolvedPackageId,
+    //     newPackageStart,
+    //     newPackageEnd,
+    //     id,
+    //   ],
+    // );
+    // ✅ Corrected Seller Update (for string status)
+await pool.query(
+  `UPDATE seller 
+   SET name = ?,
+       mobile = ?,
+       email = ?,
+       password = ?,
+       address = ?,
+       approve_status = ?,
+       device_token = ?,
+       subscription = ?,
+       current_package_id = ?,
+       current_package_start = ?,
+       current_package_end = ?
+   WHERE id = ?`,
+  [
+    name || sellerRows[0].name,
+    mobile || sellerRows[0].mobile,
+    email || sellerRows[0].email,
+    hashedPassword,
+    address || sellerRows[0].address,
+
+    // ✅ Important: Proper handling for string status
+    approve_status && approve_status.trim() !== '' 
+      ? approve_status 
+      : sellerRows[0].approve_status,
+
+    device_token || sellerRows[0].device_token,
+    subscription !== undefined ? subscription : sellerRows[0].subscription,
+    resolvedPackageId,
+    newPackageStart,
+    newPackageEnd,
+    id,
+  ]
+);
     // ✅ Update company
     const [companyRows] = await pool.query(
       "SELECT * FROM seller_company_details WHERE seller_id = ?",

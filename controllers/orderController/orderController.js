@@ -1788,10 +1788,16 @@ const formatProduct = (p) => {
 //   return orders;
 // };
 
-const attachOrderDetails = async (pool, orders) => {
-  for (const order of orders) {
-    const [products] = await pool.query(PRODUCT_SELECT_SQL, [order.id]);
-
+const attachOrderDetails = async (pool, orders, seller_id = null) => {
+    for (const order of orders) {
+    const [allProducts] = await pool.query(PRODUCT_SELECT_SQL, [order.id]);
+    // const products = allProducts.filter(
+    //   (p) => String(p.op_seller_id) === String(seller_id),
+    // );
+const products = seller_id 
+  ? allProducts.filter((p) => String(p.op_seller_id) === String(seller_id))
+  : allProducts;
+  
     let total_base_amount = 0;
     let total_gst_amount = 0;
     let total_final_amount = 0;
@@ -3075,8 +3081,16 @@ function drawSellerInvoice(
     base += line;
     gstTotal += (line * parseFloat(p.gst || 0)) / 100;
   });
-  const grand = base + gstTotal;
-  const cgst = gstTotal / 2;
+
+  // Debug shipment cost
+  console.log("Order Shipment Cost Debug:", {
+    shipment_cost_raw: order.shipment_cost,
+    type: typeof order.shipment_cost,
+    parsed: parseFloat(order.shipment_cost || 0)
+  });
+
+  const shipmentCost = parseFloat(order.shipment_cost || 0);
+  const grand = base + gstTotal + shipmentCost;  const cgst = gstTotal / 2;
   const sgst = gstTotal / 2;
 
   let y = 10;
@@ -3410,14 +3424,19 @@ doc.text(`Rs.${(line + gstAmt).toFixed(2)}`, cols[8].x, cy + 5, { width: cols[8]
     false,
     y + 40,
   );
-  drawTot("GRAND TOTAL", `Rs.${grand.toFixed(2)}`, true, y + 62);
+  
+  // ← SHIPPING CHARGES (this will always show, even if 0)
+  // const shipmentCost = parseFloat(order.shipment_cost || 0);
+  drawTot("Shipping Charges", `Rs.${shipmentCost.toFixed(2)}`, false, y + 60);
+
+  drawTot("GRAND TOTAL", `Rs.${(base + gstTotal + shipmentCost).toFixed(2)}`, true, y + 82);
 
   // Amount in words
   doc
     .fontSize(7)
     .fillColor("#555")
     .font("Helvetica")
-    .text(`Amount in words: ${numberToWords(grand)}`, totX, y + 90, {
+    .text(`Amount in words: ${numberToWords(base + gstTotal + shipmentCost)}`, totX, y + 110, {
       width: totW,
     });
 
@@ -3766,15 +3785,17 @@ export const generateOrderInvoice = async (req, res) => {
     const { orderId } = req.params;
 
     // fetch order
-    const [[order]] = await pool.query(
-      `SELECT o.id, o.order_type, o.created_at, o.order_address, o.order_contact, o.buyer_id,
-              b.name AS buyer_name, b.email AS buyer_email,
-              b.mobile AS buyer_mobile, b.address AS buyer_address
-       FROM orders o
-       LEFT JOIN buyer b ON o.buyer_id = b.id
-       WHERE o.id = ?`,
-      [orderId],
-    );
+const [[order]] = await pool.query(
+  `SELECT o.id, o.order_type, o.created_at, o.order_address, o.order_contact, 
+          o.shipment_cost,   -- ← Add this line
+          o.buyer_id,
+          b.name AS buyer_name, b.email AS buyer_email,
+          b.mobile AS buyer_mobile, b.address AS buyer_address
+   FROM orders o
+   LEFT JOIN buyer b ON o.buyer_id = b.id
+   WHERE o.id = ?`,
+  [orderId],
+);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     // fetch products with seller info
@@ -3924,7 +3945,8 @@ export const getAllOrderBySeller = async (req, res) => {
       [orderIds],
     );
 
-    await attachOrderDetails(pool, orders);
+    // await attachOrderDetails(pool, orders);
+    await attachOrderDetails(pool, orders, seller_id);
     return res.status(200).json(orders);
   } catch (err) {
     console.error("Error fetching seller orders:", err);

@@ -26,6 +26,9 @@ const copyLocalImage = async (filename, sourceFolder, destFolder) => {
 // ===============================
 // ✅ BULK UPLOAD PRODUCTS FROM EXCEL WITH LOCAL IMAGES
 // ===============================
+// ===============================
+// ✅ BULK UPLOAD PRODUCTS FROM EXCEL WITH LOCAL IMAGES
+// ===============================
 export const uploadProductsExcelLocalImages = async (req, res) => {
   let conn;
   try {
@@ -34,12 +37,15 @@ export const uploadProductsExcelLocalImages = async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    if (!seller_id)
+    if (!seller_id) {
+      await conn.rollback();
       return res
         .status(400)
         .json({ success: false, message: "Seller Id required" });
+    }
 
     if (!req.file) {
+      await conn.rollback();
       return res
         .status(400)
         .json({ success: false, message: "Excel file is required" });
@@ -52,6 +58,7 @@ export const uploadProductsExcelLocalImages = async (req, res) => {
     const data = XLSX.utils.sheet_to_json(sheet);
 
     if (!data || data.length === 0) {
+      await conn.rollback();
       return res
         .status(400)
         .json({ success: false, message: "No data found in Excel file" });
@@ -59,17 +66,17 @@ export const uploadProductsExcelLocalImages = async (req, res) => {
 
     const [rows] = await pool.query(
       `
-  SELECT 
-      sph.*, 
-      sp.max_product_add, 
-      COUNT(p.id) AS total_product,
-      (sp.max_product_add - COUNT(p.id)) AS remaining_slots
-  FROM seller_packages_history sph
-  JOIN subscription_package sp ON sph.package_id = sp.id
-  LEFT JOIN product p ON p.seller_id = sph.seller_id
-  WHERE sph.status = 'active' AND sph.seller_id = ?
-  GROUP BY sph.id, sp.max_product_add;
-`,
+      SELECT 
+          sph.*, 
+          sp.max_product_add, 
+          COUNT(p.id) AS total_product,
+          (sp.max_product_add - COUNT(p.id)) AS remaining_slots
+      FROM seller_packages_history sph
+      JOIN subscription_package sp ON sph.package_id = sp.id
+      LEFT JOIN product p ON p.seller_id = sph.seller_id
+      WHERE sph.status = 'active' AND sph.seller_id = ?
+      GROUP BY sph.id, sp.max_product_add;
+    `,
       [seller_id],
     );
 
@@ -84,8 +91,8 @@ export const uploadProductsExcelLocalImages = async (req, res) => {
     const remaining = limitInfo.remaining_slots ?? 0;
     const totalToUpload = data.length;
 
-    // 2️⃣ Check if seller exceeds limit
     if (totalToUpload > remaining) {
+      await conn.rollback();
       return res.status(400).json({
         success: false,
         message: `Upload limit exceeded. You can upload only ${remaining} more products.`,
@@ -96,9 +103,9 @@ export const uploadProductsExcelLocalImages = async (req, res) => {
     if (!fs.existsSync(uploadFolder))
       fs.mkdirSync(uploadFolder, { recursive: true });
 
-    const sourceFolder = path.join("uploads/excel-images"); // folder where your local images are stored
+    const sourceFolder = path.join("uploads/excel-images");
 
-    for (const row of data) {
+    for (const [index, row] of data.entries()) {
       const {
         name,
         sku = "",
@@ -124,50 +131,69 @@ export const uploadProductsExcelLocalImages = async (req, res) => {
         await conn.rollback();
         return res.status(400).json({
           success: false,
-          message: "Missing required fields in row: " + JSON.stringify(row),
+          message: `Missing required fields in row ${index + 2}: ` + JSON.stringify(row),
+        });
+      }
+
+      const catIdNum = Number(cat_id);
+      const catSubIdNum = Number(cat_sub_id);
+
+      if (!catIdNum || !catSubIdNum) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Invalid cat_id/cat_sub_id format in row ${index + 2} for "${name}"`,
+        });
+      }
+
+      // ✅ Validate category exists
+      const [catCheck] = await conn.query(
+        "SELECT id FROM product_category WHERE id = ?",
+        [catIdNum],
+      );
+      if (catCheck.length === 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Row ${index + 2}: cat_id "${catIdNum}" does not exist in product_category (product: "${name}")`,
+        });
+      }
+
+      // ✅ Validate sub-category exists (adjust table/column names to your schema)
+      const [subCatCheck] = await conn.query(
+        "SELECT id FROM product_subcategory WHERE id = ? AND category_id = ?",
+        [catSubIdNum, catIdNum],
+      );
+      if (subCatCheck.length === 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Row ${index + 2}: cat_sub_id "${catSubIdNum}" is not valid for cat_id "${catIdNum}" (product: "${name}")`,
         });
       }
 
       // Copy images from local folder
-      const f_image = await copyLocalImage(
-        f_image_name,
-        sourceFolder,
-        uploadFolder,
-      );
-      const image_2 = await copyLocalImage(
-        image_2_name,
-        sourceFolder,
-        uploadFolder,
-      );
-      const image_3 = await copyLocalImage(
-        image_3_name,
-        sourceFolder,
-        uploadFolder,
-      );
-      const image_4 = await copyLocalImage(
-        image_4_name,
-        sourceFolder,
-        uploadFolder,
-      );
+      const f_image = await copyLocalImage(f_image_name, sourceFolder, uploadFolder);
+      const image_2 = await copyLocalImage(image_2_name, sourceFolder, uploadFolder);
+      const image_3 = await copyLocalImage(image_3_name, sourceFolder, uploadFolder);
+      const image_4 = await copyLocalImage(image_4_name, sourceFolder, uploadFolder);
 
       await conn.query(
         `INSERT INTO product (
-          name, sku, status, detail,product_MRP, pricing_tiers, moq,
+          name, sku, status, detail, product_MRP, pricing_tiers, moq,
           cat_id, cat_sub_id, f_image, image_2, image_3, image_4,
           brand, material, made_in, specification, warranty, seller_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           name,
           sku,
           status,
           detail,
           product_MRP,
-          typeof pricing_tiers === "string"
-            ? pricing_tiers
-            : JSON.stringify(pricing_tiers),
+          typeof pricing_tiers === "string" ? pricing_tiers : JSON.stringify(pricing_tiers),
           moq,
-          cat_id,
-          cat_sub_id,
+          catIdNum,
+          catSubIdNum,
           f_image,
           image_2,
           image_3,
@@ -345,6 +371,9 @@ export const createProduct = async (req, res) => {
       specification = "",
       warranty = "",
       seller_id,
+      color_id = null,
+      finish_id = null,
+      gst = 0,
     } = req.body;
 
     if (!name || !cat_id || !cat_sub_id || !seller_id) {
@@ -389,8 +418,9 @@ export const createProduct = async (req, res) => {
       `INSERT INTO product
          (name, sku, status, detail, product_MRP, pricing_tiers, moq, quantity,
           cat_id, cat_sub_id, f_image, image_2, image_3, image_4,
-          brand, material, made_in, specification, warranty, seller_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          brand, material, made_in, specification, warranty, seller_id,
+          color_id, finish_id, gst)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         sku,
@@ -412,6 +442,9 @@ export const createProduct = async (req, res) => {
         specification,
         warranty,
         seller_id,
+        color_id,
+        finish_id,
+        Number(gst),
       ],
     );
 
@@ -1316,6 +1349,298 @@ export const getSellerReport = async (req, res) => {
       .json({ success: false, message: "Server error", error: err.message });
   }
 };
+
+
+
+export const getVendorReport = async (req, res) => {
+  try {
+    const { seller_id, year, month, start_date, end_date } = req.query;
+ 
+    if (!seller_id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "seller_id is required" });
+    }
+    if (!year && !(start_date && end_date)) {
+      return res.status(400).json({
+        success: false,
+        message: "Either year, or start_date & end_date, is required",
+      });
+    }
+ 
+    const pool = await connectDB();
+ 
+    // ── Build shared WHERE clause + params (reused across all sub-queries) ────
+    let whereClause = ` WHERE op.seller_id = ? `;
+    const baseParams = [seller_id];
+ 
+    if (start_date && end_date) {
+      whereClause += ` AND o.created_at BETWEEN ? AND ? `;
+      baseParams.push(`${start_date} 00:00:00`, `${end_date} 23:59:59`);
+    } else {
+      whereClause += ` AND YEAR(o.created_at) = ? `;
+      baseParams.push(year);
+      if (month) {
+        whereClause += ` AND MONTH(o.created_at) = ? `;
+        baseParams.push(month);
+      }
+    }
+ 
+    // ── 1. SUMMARY ──────────────────────────────────────────────────────────
+    const [summaryRows] = await pool.query(
+      `
+      SELECT
+        COUNT(DISTINCT op.order_id)                          AS total_orders,
+        COALESCE(SUM(op.price * op.quantity), 0)             AS total_revenue,
+        COUNT(DISTINCT DATE(o.created_at))                   AS active_days,
+        COUNT(DISTINCT o.buyer_id)                            AS unique_buyers,
+        COUNT(DISTINCT op.product_id)                        AS unique_products
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      ${whereClause}
+      `,
+      baseParams,
+    );
+ 
+    const s = summaryRows[0] || {};
+    const total_orders = Number(s.total_orders) || 0;
+    const total_revenue = Number(s.total_revenue) || 0;
+ 
+    const summary = {
+      total_orders,
+      total_revenue,
+      avg_order_value:
+        total_orders > 0
+          ? Number((total_revenue / total_orders).toFixed(2))
+          : 0,
+      active_days: Number(s.active_days) || 0,
+      unique_buyers: Number(s.unique_buyers) || 0,
+      unique_products: Number(s.unique_products) || 0,
+    };
+ 
+    // ── 2. MONTHLY BREAKDOWN ───────────────────────────────────────────────
+    const [monthlyRows] = await pool.query(
+      `
+      SELECT
+        MONTH(o.created_at) AS month,
+        YEAR(o.created_at)  AS year,
+        COUNT(DISTINCT op.order_id)               AS total_orders,
+        COALESCE(SUM(op.price * op.quantity), 0)  AS revenue,
+        COUNT(DISTINCT o.buyer_id)                 AS unique_buyers,
+        COUNT(DISTINCT op.product_id)              AS unique_products
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      ${whereClause}
+      GROUP BY YEAR(o.created_at), MONTH(o.created_at)
+      ORDER BY year ASC, month ASC
+      `,
+      baseParams,
+    );
+ 
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December",
+    ];
+ 
+    const monthly_breakdown = monthlyRows.map((r) => ({
+      month: r.month,
+      year: r.year,
+      month_name: monthNames[r.month - 1],
+      total_orders: Number(r.total_orders),
+      revenue: Number(r.revenue),
+      unique_buyers: Number(r.unique_buyers),
+      unique_products: Number(r.unique_products),
+    }));
+ 
+    // ── 3. DAILY BREAKDOWN ─────────────────────────────────────────────────
+    const [dailyRows] = await pool.query(
+      `
+      SELECT
+        DATE(o.created_at) AS date,
+        COUNT(DISTINCT op.order_id)               AS total_orders,
+        COALESCE(SUM(op.price * op.quantity), 0)  AS revenue,
+        COUNT(DISTINCT o.buyer_id)                 AS unique_buyers
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      ${whereClause}
+      GROUP BY DATE(o.created_at)
+      ORDER BY date ASC
+      `,
+      baseParams,
+    );
+ 
+    const daily_breakdown = dailyRows.map((r) => ({
+      date: r.date,
+      total_orders: Number(r.total_orders),
+      revenue: Number(r.revenue),
+      unique_buyers: Number(r.unique_buyers),
+    }));
+ 
+    // ── 4. PRODUCTS ─────────────────────────────────────────────────────────
+    const [productRows] = await pool.query(
+      `
+      SELECT
+        op.product_id,
+        p.name                                     AS product_name,
+        COUNT(DISTINCT op.order_id)                AS total_orders,
+        SUM(op.quantity)                            AS total_quantity,
+        COALESCE(SUM(op.price * op.quantity), 0)    AS revenue
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      LEFT JOIN product p ON p.id = op.product_id
+      ${whereClause}
+      GROUP BY op.product_id, p.name
+      ORDER BY revenue DESC
+      `,
+      baseParams,
+    );
+ 
+    const products = productRows.map((r) => ({
+      product_id: r.product_id,
+      product_name: r.product_name || null,
+      total_orders: Number(r.total_orders),
+      total_quantity: Number(r.total_quantity),
+      revenue: Number(r.revenue),
+    }));
+ 
+    // ── 5. BUYERS ───────────────────────────────────────────────────────────
+    const [buyerRows] = await pool.query(
+      `
+      SELECT
+        o.buyer_id,
+        COUNT(DISTINCT op.order_id)                AS total_orders,
+        COALESCE(SUM(op.price * op.quantity), 0)   AS total_spent
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      ${whereClause}
+      GROUP BY o.buyer_id
+      ORDER BY total_spent DESC
+      `,
+      baseParams,
+    );
+ 
+    const buyers = buyerRows.map((r) => ({
+      buyer_id: r.buyer_id,
+      total_orders: Number(r.total_orders),
+      total_spent: Number(r.total_spent),
+    }));
+ 
+    // ── 6. STATUS BREAKDOWN ────────────────────────────────────────────────
+    const [statusRows] = await pool.query(
+      `
+      SELECT
+        op.order_status                            AS status,
+        COUNT(DISTINCT op.order_id)                AS total_orders,
+        COALESCE(SUM(op.price * op.quantity), 0)   AS revenue
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      ${whereClause}
+      GROUP BY op.order_status
+      ORDER BY total_orders DESC
+      `,
+      baseParams,
+    );
+ 
+    const status_breakdown = statusRows.map((r) => ({
+      status: r.status,
+      total_orders: Number(r.total_orders),
+      revenue: Number(r.revenue),
+    }));
+ 
+    // ── 7. ORDERS (raw list, capped to avoid huge payloads) ────────────────
+    const [orderRows] = await pool.query(
+      `
+      SELECT
+        op.order_id,
+        op.product_id,
+        p.name          AS product_name,
+        o.buyer_id,
+b.name           AS buyer_name,
+        o.shipment_cost,
+        o.order_address,
+        o.order_type,
+        op.quantity,
+        op.price,
+        op.order_status,
+        op.payment_status,
+        o.created_at
+      FROM order_products op
+      JOIN orders o ON o.id = op.order_id
+      LEFT JOIN product p ON p.id = op.product_id
+      LEFT JOIN buyer b ON b.id = o.buyer_id
+      ${whereClause}
+      ORDER BY o.created_at DESC
+      LIMIT 500
+      `,
+      baseParams,
+    );
+
+    // Group flat rows by order_id, nesting products under each order
+const ordersMap = new Map();
+
+for (const r of orderRows) {
+  if (!ordersMap.has(r.order_id)) {
+    ordersMap.set(r.order_id, {
+      order_id: r.order_id,
+      buyer_id: r.buyer_id,
+      buyer_name: r.buyer_name || null,
+      shipping_cost: r.shipment_cost != null ? Number(r.shipment_cost) : null,
+      shipping_address: r.order_address || null,
+      order_type: r.order_type || null,
+      order_status: r.order_status,
+      payment_status: r.payment_status,
+      created_at: r.created_at,
+      total_quantity: 0,
+      total_price: 0,
+      products: [],
+    });
+  }
+
+  const orderEntry = ordersMap.get(r.order_id);
+
+  orderEntry.products.push({
+    product_id: r.product_id,
+    product_name: r.product_name || null,
+    quantity: Number(r.quantity),
+    price: Number(r.price),
+    order_status: r.order_status,
+  });
+
+  orderEntry.total_quantity += Number(r.quantity);
+  orderEntry.total_price += Number(r.quantity) * Number(r.price);
+}
+
+const orders = Array.from(ordersMap.values());
+
+    // ── FINAL RESPONSE ──────────────────────────────────────────────────────
+    return res.status(200).json({
+      success: true,
+      data: {
+        summary,
+        monthly_breakdown,
+        daily_breakdown,
+        products,
+        buyers,
+        status_breakdown,
+        orders,
+        filters: {
+          seller_id: Number(seller_id),
+          year: year ? Number(year) : null,
+          month: month ? Number(month) : null,
+          start_date: start_date || null,
+          end_date: end_date || null,
+          total_orders,
+        },
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching vendor report:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
+  }
+};
+ 
 
 export const getProductsByCategory = async (req, res) => {
   try {
